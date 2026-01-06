@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>PresentAI - Presentation Coach Prototype</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#3b82f6",
+                        "primary-dark": "#2563eb",
+                        secondary: "#A1A1AA",
+                        accent: "#3b82f6",
+
+                        // Merged Backgrounds/Surfaces
+                        "background-light": "#f4f4f5",
+                        "background-dark": "#09090b", // Zinc 950
+                        "app-bg": "#000000", // True Black
+
+                        // Surfaces
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#18181b", // Zinc 900
+                        "surface-highlight": "#18181b",
+                        "surface-card": "#121212",
+
+                        // Borders/Text
+                        "border-dark": "#27272a", // Zinc 800
+                        "text-secondary": "#a1a1aa", // Zinc 400
+                        "text-tertiary": "#52525b", // Zinc 600
+
+                        // Status
+                        "status-success": "#10b981",
+                        "status-warning": "#f59e0b",
+                        "status-error": "#ef4444",
+                    },
+                    fontFamily: {
+                        display: "Inter, sans-serif",
+                        sans: "Inter, sans-serif",
+                        mono: "JetBrains Mono, monospace"
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.25rem",
+                        lg: "0.5rem",
+                        xl: "0.75rem",
+                        '2xl': "1rem",
+                        full: "9999px"
+                    }
+                }
+            }
+        };
+    </script>
+
+    <!-- React Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/history@5/umd/history.development.js"></script>
+    <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.development.js"></script>
+    <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+    <!-- Custom Styles -->
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #09090b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Range Slider */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 2px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #27272a;
+            border-radius: 2px;
+        }
+
+        /* Toggles */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #3b82f6;
+        }
+
+        .toggle-checkbox:checked+.toggle-label {
+            background-color: #3b82f6;
+        }
+
+        /* Chart Gradients */
+        .chart-gradient {
+            background: linear-gradient(180deg, rgba(59, 130, 246, 0.20) 0%, rgba(59, 130, 246, 0.00) 100%);
+        }
+
+        /* Waveform */
+        .waveform-bar {
+            width: 4px;
+            border-radius: 2px;
+            background-color: #27272a;
+        }
+
+        .waveform-bar.active {
+            background-color: #3b82f6;
+        }
+    </style>
+</head>
+
+<body class="bg-background-dark text-white font-display overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { createRoot } = ReactDOM;
+        const { MemoryRouter, Routes, Route, Link, useNavigate, useLocation } = ReactRouterDOM;
+
+        // --- Shared Components / Icons ---
+
+        const LogoIcon = () => (
+            <svg className="w-full h-full" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <path clipRule="evenodd" d="M24 8.18819L33.4123 11.574L24 15.2071L14.5877 11.574L24 8.18819ZM9 15.8487L21 20.4805V37.6263L9 32.9945V15.8487ZM27 37.6263V20.4805L39 15.8487V32.9945L27 37.6263ZM25.354 2.29885C24.4788 1.98402 23.5212 1.98402 22.646 2.29885L4.98454 8.65208C3.7939 9.08038 3 10.2097 3 11.475V34.3663C3 36.0196 4.01719 37.5026 5.55962 38.098L22.9197 44.7987C23.6149 45.0671 24.3851 45.0671 25.0803 44.7987L42.4404 38.098C43.9828 37.5026 45 36.0196 45 34.3663V11.475C45 10.2097 44.2061 9.08038 43.0155 8.65208L25.354 2.29885Z" fill="currentColor" fillRule="evenodd"></path>
+            </svg>
+        );
+
+        // --- Screen 1: Settings Page ---
+        const SettingsPage = () => {
+            return (
+                <div className="flex h-screen w-full overflow-hidden bg-background-light dark:bg-background-dark font-display text-white">
+                    <aside className="hidden md:flex flex-col w-64 h-full border-r border-border-dark bg-background-dark">
+                        <div className="p-6">
+                            <div className="flex items-center gap-3">
+                                <div className="size-8 text-primary"><LogoIcon /></div>
+                                <h1 className="text-xl font-bold tracking-tight text-white">PresentAI</h1>
+                            </div>
+                        </div>
+                        <div className="flex flex-col flex-1 px-4 gap-2">
+                            <div className="flex items-center gap-3 p-3 mb-4 rounded-lg bg-surface-dark border border-border-dark">
+                                <div className="relative size-10 rounded-full bg-cover bg-center shrink-0" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBxjeuu6fTBFEmU22CcydWMxdy7UrdVvomUsXEVEyKVc7DZ7A6Pp3qL4lrUfcQrSNWkZyDdgKrQg4XeHEIAz9I8c1jvWSpcgzBz0kkJ4uYyFOeVGPjLVEtlA8SwsBGmkfZeOkMQA3WjPAuGCTtVTEWaIbqzdYA2GVMPk3DD9i53gl1NhkQoD9Ft837RpBSdg71qYs2HXVHSTc11_uwva_vzlavIAcJFRfC2YOz_5hjIT4iEfqawc5oA6XCF-hPotyG3oYGycwA5_GI_")' }}></div>
+                                <div className="flex flex-col overflow-hidden">
+                                    <span className="text-sm font-medium text-white truncate">Alex Morgan</span>
+                                    <span className="text-xs text-text-secondary truncate">alex@example.com</span>
+                                </div>
+                            </div>
+                            <Link to="/" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+                                <span className="material-symbols-outlined text-2xl">dashboard</span>
+                                <span className="text-sm font-medium">Dashboard</span>
+                            </Link>
+                            <Link to="/practice" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+                                <span className="material-symbols-outlined text-2xl">mic</span>
+                                <span className="text-sm font-medium">Practice</span>
+                            </Link>
+                            <Link to="/progress" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+                                <span className="material-symbols-outlined text-2xl">history</span>
+                                <span className="text-sm font-medium">History</span>
+                            </Link>
+                            <Link to="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary text-white shadow-md shadow-primary/20">
+                                <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>settings</span>
+                                <span className="text-sm font-medium">Settings</span>
+                            </Link>
+                        </div>
+                        <div className="p-4 border-t border-border-dark">
+                            <button className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-text-secondary hover:text-red-400 hover:bg-red-400/10 transition-colors">
+                                <span className="material-symbols-outlined text-xl">logout</span>
+                                <span className="text-sm font-medium">Sign Out</span>
+                            </button>
+                        </div>
+                    </aside>
+                    <main className="flex-1 flex flex-col h-full bg-background-light dark:bg-background-dark relative overflow-hidden">
+                        <header className="h-16 border-b border-border-dark flex items-center justify-between px-8 bg-background-dark/50 backdrop-blur-sm z-10 shrink-0">
+                            <button className="md:hidden text-text-secondary hover:text-white">
+                                <span className="material-symbols-outlined">menu</span>
+                            </button>
+                            <div className="flex items-center gap-2 text-sm">
+                                <Link to="/" className="text-text-secondary hover:text-white transition-colors">Home</Link>
+                                <span className="text-border-dark">/</span>
+                                <span className="text-white font-medium">Settings</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <button className="relative p-2 text-text-secondary hover:text-white hover:bg-surface-dark rounded-full transition-colors">
+                                    <span className="material-symbols-outlined">notifications</span>
+                                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-background-dark"></span>
+                                </button>
+                            </div>
+                        </header>
+                        <div className="flex-1 overflow-y-auto p-8 scroll-smooth">
+                            <div className="max-w-[960px] mx-auto space-y-8 pb-20">
+                                <div>
+                                    <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Settings</h1>
+                                    <p className="text-text-secondary">Manage your profile, connected apps, and AI analysis preferences.</p>
+                                </div>
+                                <div className="border-b border-border-dark">
+                                    <div className="flex gap-8">
+                                        <a className="pb-3 border-b-2 border-primary text-white font-medium text-sm cursor-pointer">Profile</a>
+                                        <a className="pb-3 border-b-2 border-transparent text-text-secondary hover:text-white font-medium text-sm transition-colors cursor-pointer">Integrations</a>
+                                        <a className="pb-3 border-b-2 border-transparent text-text-secondary hover:text-white font-medium text-sm transition-colors cursor-pointer">Preferences</a>
+                                        <a className="pb-3 border-b-2 border-transparent text-text-secondary hover:text-white font-medium text-sm transition-colors cursor-pointer">Privacy</a>
+                                    </div>
+                                </div>
+
+                                {/* Static content rendering for demo purposes */}
+                                <section className="space-y-6" id="profile">
+                                    <div className="flex justify-between items-end border-b border-border-dark pb-2">
+                                        <h2 className="text-lg font-semibold text-white">Profile Information</h2>
+                                    </div>
+                                    <div className="flex flex-col md:flex-row gap-8 items-start">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="relative group">
+                                                <div className="w-32 h-32 rounded-full bg-cover bg-center border-4 border-surface-dark shadow-xl" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuD5lOyMoNKz69tbRZbBGVfz6aA1x2X1zFZMRkDi6Fe8QBaVGEJ6twdjUYBmqBi12dwq5FleVr22TWnT79xrJR7hOvJQYCF6v_87zA9TMVcjsEI7cDbjDQI_qHjiyVmll0xBgF3zBp4pvztjXI8JnivUO9BfxpscY9VyGSrnEM2FBPqNHkFSzSVxTLwOwCj83TgSfou4ASzBD1jsYmfaWa6lcrJ2-mYfUVu8E48rCrLzGar7cj5PciPFdEZBgpzi2lUlPcHfhOR9rkkh")' }}></div>
+                                                <button className="absolute bottom-0 right-0 p-2 bg-primary text-white rounded-full hover:bg-blue-600 transition-colors shadow-lg border-2 border-background-dark">
+                                                    <span className="material-symbols-outlined text-lg">edit</span>
+                                                </button>
+                                            </div>
+                                            <span className="text-sm text-text-secondary">Allowed *.jpeg, *.jpg, *.png, *.gif</span>
+                                        </div>
+                                        <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium text-text-secondary">Full Name</label>
+                                                <input className="w-full bg-surface-dark border border-border-dark rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder-text-tertiary" type="text" defaultValue="Alex Morgan" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-sm font-medium text-text-secondary">Email Address</label>
+                                                <input className="w-full bg-surface-dark border border-border-dark rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all placeholder-text-tertiary" type="email" defaultValue="alex@example.com" />
+                                            </div>
+                                            <div className="space-y-2 md:col-span-2">
+                                                <label className="text-sm font-medium text-text-secondary">Presentation Style</label>
+                                                <div className="relative">
+                                                    <select className="w-full bg-surface-dark border border-border-dark rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary appearance-none transition-all">
+                                                        <option>Professional & Corporate</option>
+                                                        <option>Casual & Conversational</option>
+                                                        <option>TED-style Storytelling</option>
+                                                        <option>Academic & Research</option>
+                                                    </select>
+                                                    <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none">expand_more</span>
+                                                </div>
+                                                <p className="text-xs text-text-secondary mt-1">This helps the AI tailor feedback to your specific context.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section className="space-y-6 pt-6" id="integrations">
+                                    <div className="flex justify-between items-end border-b border-border-dark pb-2">
+                                        <h2 className="text-lg font-semibold text-white">Integrations</h2>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="bg-surface-dark border border-primary/30 rounded-xl p-5 flex flex-col justify-between h-40 relative overflow-hidden group hover:border-primary/50 transition-colors">
+                                            <div className="absolute top-0 right-0 p-3">
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-500 border border-green-500/20">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                                                    Connected
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shrink-0">
+                                                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                        <rect fill="#F4B400" height="18" rx="2" width="18" x="3" y="3"></rect>
+                                                        <path d="M7 8H17M7 12H17M7 16H13" stroke="white" strokeWidth="2"></path>
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-white">Google Slides</h3>
+                                                    <p className="text-sm text-text-secondary">Sync your decks automatically</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-border-dark/50">
+                                                <span className="text-xs text-text-secondary">Last synced: 2 hours ago</span>
+                                                <button className="text-sm font-medium text-text-secondary hover:text-white transition-colors">Manage</button>
+                                            </div>
+                                        </div>
+                                        <div className="bg-surface-dark border border-border-dark rounded-xl p-5 flex flex-col justify-between h-40 opacity-70 hover:opacity-100 transition-opacity cursor-not-allowed">
+                                            <div className="absolute top-0 right-0 p-3">
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-border-dark text-text-secondary border border-white/5">
+                                                    Coming Soon
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-[#2D8CFF] rounded-lg flex items-center justify-center shrink-0">
+                                                    <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M4.5 6.5C4.5 5.39543 5.39543 4.5 6.5 4.5H13.5C14.6046 4.5 15.5 5.39543 15.5 6.5V11.5C15.5 12.6046 14.6046 13.5 13.5 13.5H6.5C5.39543 13.5 4.5 12.6046 4.5 11.5V6.5Z"></path><path d="M17 7.5L20 5.5V12.5L17 10.5V7.5Z"></path></svg>
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-white">Zoom Integration</h3>
+                                                    <p className="text-sm text-text-secondary">Analyze live calls directly</p>
+                                                </div>
+                                            </div>
+                                            <div className="mt-auto">
+                                                <button className="w-full py-2 rounded bg-border-dark text-text-secondary text-xs font-semibold" disabled>Notify me when available</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section className="space-y-6 pt-6" id="preferences">
+                                    <div className="flex justify-between items-end border-b border-border-dark pb-2">
+                                        <h2 className="text-lg font-semibold text-white">Feedback Preferences</h2>
+                                    </div>
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                        <div className="lg:col-span-2 space-y-4 bg-surface-dark rounded-xl p-6 border border-border-dark">
+                                            <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Metrics to Track</h3>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex flex-col">
+                                                    <span className="text-white font-medium">Eye Contact Analysis</span>
+                                                    <span className="text-xs text-text-secondary">Track gaze focus on camera/audience</span>
+                                                </div>
+                                                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                                                    <input defaultChecked className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" id="toggle1" name="toggle" type="checkbox" />
+                                                    <label className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-700 cursor-pointer" htmlFor="toggle1"></label>
+                                                </div>
+                                            </div>
+                                            <hr className="border-border-dark" />
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex flex-col">
+                                                    <span className="text-white font-medium">Filler Word Detection</span>
+                                                    <span className="text-xs text-text-secondary">Highlight usage of "um", "ah", "like"</span>
+                                                </div>
+                                                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                                                    <input defaultChecked className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" id="toggle2" name="toggle" type="checkbox" />
+                                                    <label className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-700 cursor-pointer" htmlFor="toggle2"></label>
+                                                </div>
+                                            </div>
+                                            <hr className="border-border-dark" />
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex flex-col">
+                                                    <span className="text-white font-medium">Posture & Gestures</span>
+                                                    <span className="text-xs text-text-secondary">Monitor body language and hand movements</span>
+                                                </div>
+                                                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                                                    <input className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer" id="toggle3" name="toggle" type="checkbox" />
+                                                    <label className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-700 cursor-pointer" htmlFor="toggle3"></label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-6">
+                                            <div className="bg-surface-dark rounded-xl p-6 border border-border-dark">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">AI Sensitivity</h3>
+                                                    <span className="text-xs font-mono text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded">High</span>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <input className="w-full h-2 bg-border-dark rounded-lg appearance-none cursor-pointer" max="100" min="1" type="range" defaultValue="80" />
+                                                    <div className="flex justify-between text-xs text-text-secondary">
+                                                        <span>Lenient</span>
+                                                        <span>Strict</span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs text-text-secondary mt-4 leading-relaxed">
+                                                    Higher sensitivity means the AI will flag even minor pauses or slight gaze shifts. Recommended for advanced speakers.
+                                                </p>
+                                            </div>
+                                            <div className="bg-surface-dark rounded-xl p-6 border border-border-dark">
+                                                <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Feedback Timing</h3>
+                                                <div className="space-y-3">
+                                                    <label className="flex items-center gap-3 cursor-pointer group">
+                                                        <div className="relative flex items-center">
+                                                            <input defaultChecked className="peer h-4 w-4 border-gray-600 text-primary focus:ring-primary/50 bg-transparent checked:bg-primary checked:border-primary focus:ring-offset-background-dark" name="timing" type="radio" />
+                                                        </div>
+                                                        <span className="text-sm text-white group-hover:text-primary transition-colors">Post-presentation only</span>
+                                                    </label>
+                                                    <label className="flex items-center gap-3 cursor-pointer group">
+                                                        <div className="relative flex items-center">
+                                                            <input className="peer h-4 w-4 border-gray-600 text-primary focus:ring-primary/50 bg-transparent checked:bg-primary checked:border-primary focus:ring-offset-background-dark" name="timing" type="radio" />
+                                                        </div>
+                                                        <span className="text-sm text-white group-hover:text-primary transition-colors">Real-time HUD</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <div className="sticky bottom-0 -mx-8 px-8 py-4 bg-background-dark/80 backdrop-blur-md border-t border-border-dark flex justify-end gap-4 mt-8">
+                                    <button className="px-6 py-2 rounded-lg text-sm font-medium text-white hover:bg-surface-dark border border-transparent hover:border-border-dark transition-all">Discard</button>
+                                    <button className="px-6 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-blue-600 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all">Save Changes</button>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        // --- Screen 2: Practice Page ---
+        const PracticePage = () => {
+            const navigate = useNavigate();
+
+            return (
+                <div className="bg-app-bg text-white font-display h-screen flex overflow-hidden selection:bg-white/20">
+                    <aside className="w-64 bg-app-bg border-r border-border-dark flex-col hidden lg:flex shrink-0 z-20">
+                        <div className="h-16 flex items-center px-6 border-b border-border-dark">
+                            <div className="flex items-center gap-3 text-white">
+                                <div className="size-6"><LogoIcon /></div>
+                                <h2 className="text-white text-lg font-bold tracking-tight">PresentAI</h2>
+                            </div>
+                        </div>
+                        <div className="flex flex-col justify-between flex-1 p-4 overflow-y-auto">
+                            <div className="flex flex-col gap-2">
+                                <div className="flex gap-3 mb-6 p-2 rounded-lg bg-surface-highlight border border-border-dark items-center">
+                                    <div className="bg-center bg-no-repeat bg-cover rounded-full size-10 shrink-0 border border-border-dark" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuAhMIgBNuAgxnuzpUNEH6FCtSCbauj3NbaNZPHXhKk_YwAcI45Tbq2QFxqTAKc0ntp0P4KpmE_vmt8Sj22QSmsEKVMzDkaS9iec8Ba0Mnx7OFcCv89A8p69yWOb7su1C_5hHBZXaknpnVjhPt0Uuh6larnpq204Zr7iG1N9b74UJ-SrAiNGaHzKD24Gq-lFUNq6fH0QcGqlwa5Dhti5g2FLdWaC928sZpjx3xCwJC_AEMEQBu73sKsnAHWSRrDoSt4YLPr2y4WIDdaA")' }}></div>
+                                    <div className="flex flex-col overflow-hidden">
+                                        <h1 className="text-white text-sm font-semibold truncate">Alex Smith</h1>
+                                        <p className="text-zinc-500 text-xs font-medium">Pro Member</p>
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <Link to="/" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-400 hover:text-white hover:bg-surface-highlight transition-colors">
+                                        <span className="material-symbols-outlined text-[20px]">dashboard</span>
+                                        <p className="text-sm font-medium">Dashboard</p>
+                                    </Link>
+                                    <Link to="/practice" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white text-black shadow-lg shadow-white/5">
+                                        <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>videocam</span>
+                                        <p className="text-sm font-semibold">Practice</p>
+                                    </Link>
+                                    <Link to="/progress" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-400 hover:text-white hover:bg-surface-highlight transition-colors">
+                                        <span className="material-symbols-outlined text-[20px]">history</span>
+                                        <p className="text-sm font-medium">History</p>
+                                    </Link>
+                                    <Link to="/progress" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-400 hover:text-white hover:bg-surface-highlight transition-colors">
+                                        <span className="material-symbols-outlined text-[20px]">analytics</span>
+                                        <p className="text-sm font-medium">Reports</p>
+                                    </Link>
+                                </div>
+                            </div>
+                            <div className="space-y-1 border-t border-border-dark pt-4">
+                                <Link to="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-400 hover:text-white hover:bg-surface-highlight transition-colors">
+                                    <span className="material-symbols-outlined text-[20px]">settings</span>
+                                    <p className="text-sm font-medium">Settings</p>
+                                </Link>
+                                <a className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-400 hover:text-white hover:bg-surface-highlight transition-colors" href="#">
+                                    <span className="material-symbols-outlined text-[20px]">help</span>
+                                    <p className="text-sm font-medium">Help & Support</p>
+                                </a>
+                            </div>
+                        </div>
+                    </aside>
+                    <main className="flex-1 flex flex-col min-w-0 bg-black">
+                        <header className="h-16 border-b border-border-dark bg-app-bg px-6 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-4">
+                                <button className="lg:hidden p-2 -ml-2 text-zinc-400">
+                                    <span className="material-symbols-outlined">menu</span>
+                                </button>
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-white text-lg font-bold tracking-tight">Q3 Business Review</h2>
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-zinc-800 text-zinc-400 border border-zinc-700">Draft</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-surface-highlight border border-border-dark">
+                                    <span className="material-symbols-outlined text-zinc-400 text-[18px]">timer</span>
+                                    <span className="text-white text-sm font-mono font-medium tracking-wide">00:14:23</span>
+                                </div>
+                                <button className="p-2 text-zinc-400 hover:text-white transition-colors relative">
+                                    <span className="material-symbols-outlined">notifications</span>
+                                    <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-black"></span>
+                                </button>
+                            </div>
+                        </header>
+                        <div className="flex-1 flex overflow-hidden relative">
+                            <section className="flex-[3] min-w-0 p-4 lg:p-6 flex flex-col gap-4 relative bg-black">
+                                <div className="relative flex-1 bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl border border-border-dark group">
+                                    <div className="absolute inset-0 bg-cover bg-center opacity-80" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuC-AaxeHFdmbYi0wFwoj9J-hRCIBuLvBBMIHDALGflZNkOTPh3-0wqHVg1NMIKLwOmDBZdzpUTryaj8S3nIz9Evez8glhO_DlOJedhOZ0W7RB3xEPMKBPCZViBDQ-iPYeJWX4krS9l70eouggWsQlpdtfXcRZ1FIrlDxnKsJ7AkjcdIu1ylA2bk61dw3hASsHj0uQ5NmiZ6e3mTcym_38NF9tkO2U3GNMWoD_oYAtGe29wDF7fsLy9tUNwHEQklcGfG2QqLRGuriZIJ")' }}></div>
+                                    <div className="absolute top-6 left-6 flex items-center gap-2 bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                                        <div className="size-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)]"></div>
+                                        <span className="text-white text-xs font-bold tracking-wide">REC</span>
+                                    </div>
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                                        <div className="w-[300px] h-[400px] border border-white/10 rounded-full border-dashed flex items-center justify-center">
+                                            <div className="size-1.5 bg-white/30 rounded-full"></div>
+                                        </div>
+                                    </div>
+                                    <div className="absolute top-1/3 right-1/4 bg-black/40 backdrop-blur-md p-2 rounded-lg border border-white/10 shadow-lg animate-bounce" style={{ animationDuration: "3s" }}>
+                                        <div className="flex items-center gap-2">
+                                            <span className="material-symbols-outlined text-white text-[20px]">visibility</span>
+                                            <span className="text-white text-xs font-medium">Look here</span>
+                                        </div>
+                                    </div>
+                                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-2xl bg-zinc-900/90 backdrop-blur-xl p-2 rounded-xl border border-white/10 flex items-center gap-3 overflow-x-auto no-scrollbar shadow-2xl">
+                                        <div className="flex-1 flex items-center gap-3 justify-center">
+                                            <div className="h-14 aspect-video rounded bg-zinc-800 opacity-60 bg-cover bg-center border border-white/5 hover:opacity-80 transition-opacity cursor-pointer" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDf7syD2QZCt4PfRqx5J74qwuYh4jpV_9lZlbwFOg7V1QyqIaMBhKAYuzZ0PHmUauoSm3E6gL7fv6CkUqYz7BnTy5UtaBcTFUbfzZZQ6HwD8FGzRO_u4seLEDrM6Zzc1qbuUDs5f9EWyaLXGftIGUPFibuOtF2jjEdmL_xWFNlrt2INRzjlM-j2CDn7iNZRSNKPAy5qYcyESxT-NTkxnQ7uWFlbwOwsMNjZg3yDzAq33A_z0JnEJ2BddjvlwkkjupdPxDkW-TdbpX1O')" }}></div>
+                                            <div className="h-16 aspect-video rounded-lg ring-1 ring-white relative bg-cover bg-center shrink-0 shadow-lg" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuA_frrlt8JQiMx3JtTpcHA8wJ1kvxFxs33r7kxNyOM9lgXWS6FHlvJaMxLTnNgzIHki-hy-8cHmBbFeFxT0gj537odtIyZ6uQ4hwBX01U1MwS1U5eLlI-HtVL5dOIBpIP_LA10cq3AVHLOWJFmWd6DNSoRWGCPIJHSSQwhFaOsdvusG3eWRVty_RmKUXjYTgtDrp_c_XvQKy8aAU1AHbm7hPuL1D3aZnuYeUKgeAKyZrb85MH8bISwKOEN56ZLq1QHqQQmxnpce8Fd5')" }}>
+                                                <div className="absolute -top-2 -right-2 bg-white text-black text-[10px] font-bold px-1.5 py-0.5 rounded border border-zinc-300 shadow-sm">3/10</div>
+                                            </div>
+                                            <div className="h-14 aspect-video rounded bg-zinc-800 opacity-60 bg-cover bg-center border border-white/5 hover:opacity-80 transition-opacity cursor-pointer" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuB2s73F5b0cekrhiSVpVa_lv4KtvAbVqZVAmKYcuw6cOzQuCU-ThNUu-qRPJlYpfCpEEau-6Z83PrsrzO3LNstX2TdXXO6Oi2n9mkB_vFsU9nrSbvLB8fGur5JgJessj795RLBoO-jRakL-qw1ASi9pepA8pAvGYvn8c4h70XbQxReFDg9FR6r_fjlF-xypwqZUD83WcbZVdkaalPlHAVbcZ8J9dAtxTh7wSDI7v-ySFfasYzIEB8MMU34zz4wWtrjrodfhNT_kX3IX')" }}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                            <section className="flex-[2] w-full max-w-[420px] border-l border-border-dark bg-app-bg flex flex-col relative overflow-hidden">
+                                <div className="flex border-b border-border-dark px-4 bg-app-bg">
+                                    <button className="px-4 py-4 text-sm font-semibold text-white border-b-2 border-white">Live Metrics</button>
+                                    <button className="px-4 py-4 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">Script</button>
+                                    <button className="px-4 py-4 text-sm font-medium text-zinc-500 hover:text-zinc-300 transition-colors">Notes</button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-black">
+                                    <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 flex gap-3 items-start relative">
+                                        <button className="absolute top-2 right-2 text-zinc-500 hover:text-white transition-colors">
+                                            <span className="material-symbols-outlined text-[16px]">close</span>
+                                        </button>
+                                        <div className="p-1.5 bg-blue-500/10 rounded-md border border-blue-500/20 text-blue-400">
+                                            <span className="material-symbols-outlined text-[18px] block">lightbulb</span>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-white mb-1">Pacing Tip</h4>
+                                            <p className="text-sm text-zinc-400 leading-relaxed">You're speaking a bit fast (160 wpm). Try to pause after key points to let the audience digest the data.</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="p-4 rounded-xl bg-surface-highlight border border-border-dark flex flex-col items-center justify-center gap-3">
+                                            <div className="relative size-20">
+                                                <svg className="size-full -rotate-90" viewBox="0 0 36 36">
+                                                    <path className="text-zinc-800" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="2"></path>
+                                                    <path className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray="85, 100" strokeLinecap="round" strokeWidth="2"></path>
+                                                </svg>
+                                                <div className="absolute inset-0 flex items-center justify-center flex-col">
+                                                    <span className="text-xl font-bold text-white">85<span className="text-xs text-zinc-500">%</span></span>
+                                                </div>
+                                            </div>
+                                            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Eye Contact</span>
+                                        </div>
+                                        <div className="p-4 rounded-xl bg-surface-highlight border border-border-dark flex flex-col items-center justify-center gap-2">
+                                            <div className="flex items-end gap-1.5">
+                                                <span className="text-3xl font-bold text-white">92</span>
+                                                <span className="text-sm font-bold text-emerald-500 mb-1.5 flex items-center bg-emerald-500/10 px-1 py-0.5 rounded">
+                                                    <span className="material-symbols-outlined text-[14px]">trending_up</span>
+                                                </span>
+                                            </div>
+                                            <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden mt-1">
+                                                <div className="h-full bg-emerald-500 w-[92%] shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                                            </div>
+                                            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide mt-1">Confidence</span>
+                                        </div>
+                                    </div>
+                                    {/* More widgets... simplified for brevity, assume similar structure */}
+                                </div>
+                            </section>
+                        </div>
+                        <footer className="h-20 bg-app-bg border-t border-border-dark flex items-center justify-between px-6 shrink-0 z-50">
+                            <div className="flex items-center gap-4 w-1/3">
+                                <button className="flex items-center gap-2 text-zinc-400 hover:text-white font-medium text-sm transition-colors">
+                                    <span className="material-symbols-outlined text-[20px]">tune</span>
+                                    Settings
+                                </button>
+                                <div className="h-6 w-px bg-zinc-800"></div>
+                                <div className="flex items-center gap-2 text-red-500 animate-pulse">
+                                    <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>fiber_manual_record</span>
+                                    <span className="text-xs font-bold uppercase tracking-widest">Recording</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-6 justify-center w-1/3">
+                                <button className="p-3 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors" title="Previous Slide">
+                                    <span className="material-symbols-outlined">skip_previous</span>
+                                </button>
+                                <button onClick={() => navigate('/feedback')} className="h-12 px-8 rounded-full bg-white hover:bg-zinc-200 text-black shadow-[0_0_20px_rgba(255,255,255,0.15)] flex items-center gap-2 transition-all active:scale-95">
+                                    <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>stop_circle</span>
+                                    <span className="font-bold text-base">End Session</span>
+                                </button>
+                                <button className="p-3 rounded-full text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors" title="Next Slide">
+                                    <span className="material-symbols-outlined">skip_next</span>
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-4 w-1/3 justify-end">
+                                <button className="px-4 py-2.5 rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
+                                    Skip Slide
+                                    <span className="material-symbols-outlined text-[16px]">forward</span>
+                                </button>
+                                <button className="p-2.5 rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors" title="Toggle Layout">
+                                    <span className="material-symbols-outlined text-[20px]">grid_view</span>
+                                </button>
+                            </div>
+                        </footer>
+                    </main>
+                </div>
+            );
+        };
+
+        // --- Screen 3: Progress Page ---
+        const ProgressPage = () => {
+            return (
+                <div className="bg-background-dark font-display text-white overflow-hidden h-screen flex flex-col selection:bg-primary selection:text-white">
+                    <header className="flex-shrink-0 flex items-center justify-between whitespace-nowrap border-b border-solid border-border-dark bg-background-dark px-6 lg:px-10 py-3 z-20">
+                        <div className="flex items-center gap-4 text-white">
+                            <div className="size-8 text-primary">
+                                <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 42.4379C4 42.4379 14.0962 36.0744 24 41.1692C35.0664 46.8624 44 42.2078 44 42.2078L44 7.01134C44 7.01134 35.068 11.6577 24.0031 5.96913C14.0971 0.876274 4 7.27094 4 7.27094L4 42.4379Z" fill="currentColor"></path>
+                                </svg>
+                            </div>
+                            <h2 className="text-white text-lg font-bold leading-tight tracking-[-0.015em]">PresentationAI</h2>
+                        </div>
+                        <div className="flex flex-1 justify-end gap-4 items-center">
+                            <button className="lg:hidden text-white">
+                                <span className="material-symbols-outlined">menu</span>
+                            </button>
+                            <div className="hidden lg:flex gap-4">
+                                <button className="flex h-10 items-center justify-center gap-2 rounded-lg bg-surface-dark px-4 text-white hover:bg-border-dark transition-colors border border-border-dark">
+                                    <span className="material-symbols-outlined text-[20px]">notifications</span>
+                                </button>
+                                <button className="flex h-10 items-center justify-center gap-2 rounded-lg bg-white px-4 text-black font-bold text-sm hover:bg-gray-200 transition-colors">
+                                    <span>Profile</span>
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+                    <div className="flex flex-1 overflow-hidden">
+                        <aside className="hidden lg:flex w-64 flex-col justify-between border-r border-border-dark bg-background-dark p-4 flex-shrink-0">
+                            <div className="flex flex-col gap-6">
+                                <div className="flex gap-3 items-center px-2">
+                                    <div className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-12 border border-border-dark" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBphFbSNlprC34w_MhOXoiF6HiZ1ZQ-QAaqg-_tlV44kL7za7LtHryImF_xkOQvPwgpBbPMX0iVhDbWu6kyHDGsSeG_KV6Ovp7Tw3d-9x0qUv2zao8WgA7o584ubARib2PEshrc4xC98fRVX5oczv8WmQy8hAgB9JZZ1ZZd00VXnh613rCKMSDrs678smapSeeDklfmAdWyxIj7RijkiO5PdATotATiAQ8pT3v_lKsYddalzgfXO80FLaoyOzvcv_DADDSbh6eszQtM")' }}></div>
+                                    <div className="flex flex-col">
+                                        <h1 className="text-white text-base font-medium leading-normal">Alex Chen</h1>
+                                        <p className="text-text-secondary text-xs font-normal leading-normal">Pro Member</p>
+                                    </div>
+                                </div>
+                                <nav className="flex flex-col gap-2">
+                                    <Link to="/" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors group">
+                                        <span className="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors">dashboard</span>
+                                        <p className="text-sm font-medium leading-normal">Dashboard</p>
+                                    </Link>
+                                    <Link to="/practice" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors group">
+                                        <span className="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors">video_camera_front</span>
+                                        <p className="text-sm font-medium leading-normal">Practice</p>
+                                    </Link>
+                                    <Link to="/progress" className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-surface-dark text-white shadow-sm border border-border-dark">
+                                        <span className="material-symbols-outlined text-[24px] text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>trending_up</span>
+                                        <p className="text-sm font-medium leading-normal">Progress</p>
+                                    </Link>
+                                    <Link to="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors group">
+                                        <span className="material-symbols-outlined text-[24px] group-hover:text-primary transition-colors">settings</span>
+                                        <p className="text-sm font-medium leading-normal">Settings</p>
+                                    </Link>
+                                </nav>
+                            </div>
+                            <div className="p-4 rounded-xl bg-surface-dark border border-border-dark">
+                                <p className="text-xs text-text-secondary mb-2">Weekly Goal</p>
+                                <div className="flex justify-between items-end mb-1">
+                                    <span className="text-white font-bold text-lg">3/5</span>
+                                    <span className="text-primary text-xs font-bold">60%</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-border-dark rounded-full overflow-hidden">
+                                    <div className="h-full bg-primary w-[60%] rounded-full"></div>
+                                </div>
+                            </div>
+                        </aside>
+                        <main className="flex-1 overflow-y-auto relative bg-background-dark">
+                            <div className="max-w-[1200px] mx-auto p-4 md:p-8 space-y-8">
+                                <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+                                    <div className="flex flex-col gap-2">
+                                        <h1 className="text-white text-3xl md:text-4xl font-black leading-tight tracking-tight">Your Progress</h1>
+                                        <p className="text-text-secondary text-base font-normal">Tracking your growth since Nov 2023</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-4 bg-surface-dark p-1.5 rounded-xl border border-border-dark">
+                                        <div className="flex bg-background-dark rounded-lg p-1 border border-border-dark">
+                                            <button className="px-4 py-1.5 rounded text-sm font-medium text-text-secondary hover:text-white transition-colors">Week</button>
+                                            <button className="px-4 py-1.5 rounded bg-surface-dark text-white text-sm font-bold shadow-sm border border-border-dark">Month</button>
+                                            <button className="px-4 py-1.5 rounded text-text-secondary hover:text-white transition-colors text-sm font-medium">All Time</button>
+                                        </div>
+                                        <div className="h-6 w-px bg-border-dark mx-1 hidden sm:block"></div>
+                                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border-dark bg-background-dark cursor-pointer hover:border-text-secondary/50 transition-colors">
+                                            <span className="material-symbols-outlined text-text-secondary text-[20px]">calendar_today</span>
+                                            <span className="text-text-secondary text-sm">Oct 1 - Oct 31, 2023</span>
+                                            <span className="material-symbols-outlined text-text-secondary text-[16px]">expand_more</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                                    {/* Stat Cards */}
+                                    <div className="bg-surface-dark border border-border-dark rounded-xl p-5 flex flex-col justify-between gap-4 hover:border-text-secondary/30 transition-colors">
+                                        <div className="flex justify-between items-start">
+                                            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                                                <span className="material-symbols-outlined">mic</span>
+                                            </div>
+                                            <span className="flex items-center gap-1 text-xs font-medium text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">
+                                                <span className="material-symbols-outlined text-[14px]">trending_up</span> +12%
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p className="text-text-secondary text-sm font-medium">Total Sessions</p>
+                                            <h3 className="text-white text-2xl font-bold mt-1">24</h3>
+                                        </div>
+                                    </div>
+                                    {/* ... more stat cards would go here ... */}
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    <div className="lg:col-span-2 bg-surface-dark border border-border-dark rounded-xl p-6">
+                                        <div className="flex justify-between items-center mb-6">
+                                            <div>
+                                                <h3 className="text-white text-lg font-bold">Score Trend</h3>
+                                                <p className="text-text-secondary text-sm">Overall performance over the last 30 days</p>
+                                            </div>
+                                            {/* Chart Controls */}
+                                        </div>
+                                        <div className="relative w-full h-[300px] flex items-end gap-2 pt-10">
+                                            {/* SVG Chart */}
+                                            <svg className="w-full h-full absolute inset-0 z-10" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                                <defs>
+                                                    <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+                                                        <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2"></stop>
+                                                        <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"></stop>
+                                                    </linearGradient>
+                                                </defs>
+                                                <path d="M0,80 C10,75 20,60 30,65 C40,70 50,40 60,35 C70,30 80,45 90,20 L100,15 L100,100 L0,100 Z" fill="url(#chartGradient)"></path>
+                                                <path d="M0,80 C10,75 20,60 30,65 C40,70 50,40 60,35 C70,30 80,45 90,20 L100,15" fill="none" stroke="#3b82f6" strokeWidth="2" vectorEffect="non-scaling-stroke"></path>
+                                                <circle cx="30" cy="65" fill="#3b82f6" r="1.5" stroke="#18181b" strokeWidth="0.5"></circle>
+                                                <circle cx="60" cy="35" fill="#3b82f6" r="1.5" stroke="#18181b" strokeWidth="0.5"></circle>
+                                                <circle cx="90" cy="20" fill="#3b82f6" r="1.5" stroke="#18181b" strokeWidth="0.5"></circle>
+                                            </svg>
+                                        </div>
+                                    </div>
+
+                                    {/* Spider Chart Block */}
+                                    <div className="bg-surface-dark border border-border-dark rounded-xl p-6 flex flex-col">
+                                        <div className="mb-4">
+                                            <h3 className="text-white text-lg font-bold">Skill Balance</h3>
+                                            <p className="text-text-secondary text-sm">Current vs Baseline</p>
+                                        </div>
+                                        <div className="flex-1 flex items-center justify-center relative">
+                                            <svg className="w-full max-w-[280px]" viewBox="0 0 200 200">
+                                                <g fill="none" opacity="0.5" stroke="#333333" strokeWidth="1">
+                                                    <polygon points="100,20 170,60 170,140 100,180 30,140 30,60"></polygon>
+                                                    <polygon points="100,40 152.5,70 152.5,130 100,160 47.5,130 47.5,70"></polygon>
+                                                    <polygon points="100,60 135,80 135,120 100,140 65,120 65,80"></polygon>
+                                                </g>
+                                                <polygon fill="rgba(59, 130, 246, 0.2)" points="100,30 160,70 150,135 100,165 50,120 40,70" stroke="#3b82f6" strokeWidth="2"></polygon>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Screen 4: Dashboard Page ---
+        const DashboardPage = () => {
+            return (
+                <div className="font-display antialiased text-zinc-900 dark:text-zinc-100 bg-background-light dark:bg-background-dark min-h-screen flex flex-col overflow-hidden">
+                    <header className="flex h-16 shrink-0 items-center justify-between border-b border-gray-200 dark:border-border-dark bg-surface-light dark:bg-surface-dark px-6 z-20 relative">
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center justify-center text-primary">
+                                <span className="material-symbols-outlined text-3xl">mic_external_on</span>
+                            </div>
+                            <h2 className="text-lg font-bold leading-tight tracking-[-0.015em] hidden sm:block text-zinc-900 dark:text-white">PresentationCoach</h2>
+                        </div>
+                        <nav className="hidden md:flex items-center gap-1">
+                            <Link to="/practice" className="text-zinc-600 dark:text-zinc-400 hover:text-primary dark:hover:text-primary px-4 py-2 text-sm font-medium leading-normal border-b-2 border-transparent transition-colors">Practice</Link>
+                            <Link to="/" className="text-primary px-4 py-2 text-sm font-medium leading-normal border-b-2 border-primary">My Sessions</Link>
+                            <Link to="/progress" className="text-zinc-600 dark:text-zinc-400 hover:text-primary dark:hover:text-primary px-4 py-2 text-sm font-medium leading-normal border-b-2 border-transparent transition-colors">Progress</Link>
+                            <Link to="/settings" className="text-zinc-600 dark:text-zinc-400 hover:text-primary dark:hover:text-primary px-4 py-2 text-sm font-medium leading-normal border-b-2 border-transparent transition-colors">Settings</Link>
+                        </nav>
+                        <div className="flex items-center gap-4">
+                            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-surface-highlight border border-gray-200 dark:border-border-dark">
+                                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                                <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Slides Connected</span>
+                            </div>
+                            <button className="relative flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-surface-highlight rounded-full p-1 pl-3 transition-colors group">
+                                <span className="text-sm font-medium hidden sm:block text-zinc-700 dark:text-zinc-200">Alex Chen</span>
+                                <div className="h-8 w-8 rounded-full bg-center bg-cover border border-gray-200 dark:border-border-dark" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCxMAqJ9Uh4Zkgbm1wKYDwDBX4vu-i-OlTVe9OnlKCOHMQoPPuaWNwnucTpTL15JCVRpTgfXO9QnfQdRt_6Xz_NbwN1wgybhcc_yGSZzDAK-fmRH0bgSwb9zaQvbRZvJbsZCZ5Vhszxk7N0nwaKXiqb6SHbiyXVyqaAZ3kSHMl3PXT2ftHZXIXoI0oG1VLJc3URUT8HgeFDczvjUfQExCfUeyth7VaocNbo_YzUA0iIuMwlFfGPU_OY2Kn0prHhPbUQTSyFjArmoX-v')" }}></div>
+                                <span className="material-symbols-outlined text-zinc-400 text-sm">expand_more</span>
+                            </button>
+                        </div>
+                    </header>
+                    <div className="flex flex-1 overflow-hidden relative">
+                        <aside className="w-80 flex-shrink-0 flex flex-col border-r border-gray-200 dark:border-border-dark bg-surface-light dark:bg-surface-dark overflow-y-auto hidden lg:flex">
+                            <div className="p-6 flex flex-col gap-6">
+                                <Link to="/practice" className="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl h-12 bg-primary hover:bg-blue-600 text-white gap-2 px-4 text-base font-bold leading-normal tracking-[0.015em] transition-all shadow-lg shadow-primary/20">
+                                    <span className="material-symbols-outlined">videocam</span>
+                                    <span className="truncate">Start New Session</span>
+                                </Link>
+                                <div className="flex flex-col gap-4">
+                                    <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider">Weekly Stats</h3>
+                                    <div className="flex flex-col gap-3 rounded-xl bg-gray-50 dark:bg-surface-highlight p-4 border border-gray-200 dark:border-border-dark">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-500/10 text-primary">
+                                                <span className="material-symbols-outlined">timer</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">Practice Time</p>
+                                                <div className="flex items-baseline gap-2">
+                                                    <p className="text-lg font-bold text-zinc-900 dark:text-white">2.5 hrs</p>
+                                                    <span className="text-xs font-medium text-emerald-500">+5%</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="w-full bg-gray-200 dark:bg-zinc-800 rounded-full h-1.5">
+                                            <div className="bg-primary h-1.5 rounded-full" style={{ width: "65%" }}></div>
+                                        </div>
+                                    </div>
+                                    {/* More stats... */}
+                                </div>
+                            </div>
+                        </aside>
+                        <main className="flex-1 overflow-y-auto bg-background-light dark:bg-background-dark p-6 md:p-10 lg:p-12">
+                            <div className="max-w-5xl mx-auto space-y-10">
+                                <div className="flex flex-col gap-2">
+                                    <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-zinc-900 dark:text-white">Ready to practice, Alex?</h1>
+                                    <p className="text-zinc-600 dark:text-zinc-400 text-lg">Pick up where you left off or start a new analysis.</p>
+                                </div>
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    <div className="group relative overflow-hidden rounded-2xl bg-surface-light dark:bg-surface-dark p-8 border border-gray-200 dark:border-border-dark hover:border-blue-500/50 dark:hover:border-blue-500/50 transition-all cursor-pointer shadow-sm hover:shadow-xl hover:shadow-blue-500/10">
+                                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                            <span className="material-symbols-outlined text-9xl text-zinc-900 dark:text-white">present_to_all</span>
+                                        </div>
+                                        <div className="relative z-10 flex flex-col h-full items-start">
+                                            <div className="h-14 w-14 rounded-xl bg-orange-100 dark:bg-orange-900/20 text-[#F4B400] flex items-center justify-center mb-6">
+                                                <span className="material-symbols-outlined text-3xl">slideshow</span>
+                                            </div>
+                                            <h3 className="text-xl font-bold mb-2 text-zinc-900 dark:text-white">Import from Google Slides</h3>
+                                            <p className="text-zinc-600 dark:text-zinc-400 mb-8">Connect your deck to get slide-by-slide feedback on pacing and content.</p>
+                                            <button className="mt-auto text-sm font-bold text-primary group-hover:underline flex items-center gap-1">
+                                                Connect Slides <span className="material-symbols-outlined text-base">arrow_forward</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-blue-700 p-8 text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] cursor-pointer">
+                                        <div className="absolute bottom-0 right-0 p-4 opacity-20">
+                                            <span className="material-symbols-outlined text-9xl">mic</span>
+                                        </div>
+                                        <div className="relative z-10 flex flex-col h-full items-start">
+                                            <div className="h-14 w-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-6">
+                                                <span className="material-symbols-outlined text-3xl">videocam</span>
+                                            </div>
+                                            <h3 className="text-xl font-bold mb-2">Quick Practice Session</h3>
+                                            <p className="text-blue-100 mb-8">Start an impromptu speech analysis without visual aids. Great for practicing Q&Q.</p>
+                                            <Link to="/practice" className="mt-auto py-2 px-4 bg-white text-primary rounded-lg text-sm font-bold hover:bg-blue-5 text-center transition-colors flex items-center gap-2">
+                                                Start Now <span className="material-symbols-outlined text-base">play_arrow</span>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* Recent Sessions */}
+                            </div>
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Screen 5: Feedback Page ---
+        const FeedbackPage = () => {
+            const navigate = useNavigate();
+            return (
+                <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display overflow-hidden h-screen flex">
+                    <aside className="w-20 lg:w-64 flex flex-col border-r border-border-dark bg-surface-dark h-full shrink-0 transition-all duration-300">
+                        <div className="flex h-full flex-col justify-between p-4">
+                            <div className="flex flex-col gap-4">
+                                <div className="flex gap-3 items-center pb-4 border-b border-border-dark">
+                                    <div className="bg-center bg-no-repeat bg-cover rounded-full size-10 shrink-0 ring-2 ring-border-dark" style={{ backgroundImage: 'url("https://lh3.googleusercontent.com/aida-public/AB6AXuCxU6tDQVj_NJxoETZkF0PClIx9Jm5vwAgFWluLw01m1SH0TkDAJa_O8ZwlZM60HjyCDzTb2GRWhAbX-XrzxnzEqm532xGl-a8zdmfaSikXYpyXgu_JycMTwKNXw4TNqZ7XsvGglbm_IC96Pxielf3h4ZbWF0iYRXCz1xjvQ13XL2Onujnh21YK73bh8NjwW6U4442l9FL_qkRYIzEQsBgucFfzbGSTUjnzO7FnU5jguXefqL3SYbWu5tbGzVIRgurZ0Jnm-F-lqSY_")' }}></div>
+                                    <div className="flex flex-col hidden lg:flex">
+                                        <h1 className="text-white text-base font-medium leading-normal">Alex</h1>
+                                        <p className="text-text-secondary text-sm font-normal leading-normal">Pro Member</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <Link to="/" className="flex items-center gap-3 px-3 py-2 text-text-secondary hover:text-white hover:bg-zinc-900 rounded-lg cursor-pointer transition-colors">
+                                        <span className="material-symbols-outlined">dashboard</span>
+                                        <p className="text-sm font-medium leading-normal hidden lg:block">Dashboard</p>
+                                    </Link>
+                                    <Link to="/practice" className="flex items-center gap-3 px-3 py-2 text-text-secondary hover:text-white hover:bg-zinc-900 rounded-lg cursor-pointer transition-colors">
+                                        <span className="material-symbols-outlined">add_circle</span>
+                                        <p className="text-sm font-medium leading-normal hidden lg:block">New Session</p>
+                                    </Link>
+                                    <Link to="/progress" className="flex items-center gap-3 px-3 py-2 text-text-secondary hover:text-white hover:bg-zinc-900 rounded-lg cursor-pointer transition-colors">
+                                        <span className="material-symbols-outlined">bar_chart</span>
+                                        <p className="text-sm font-medium leading-normal hidden lg:block">Analytics</p>
+                                    </Link>
+                                </div>
+                            </div>
+                            <Link to="/settings" className="flex items-center gap-3 px-3 py-2 text-text-secondary hover:text-white hover:bg-zinc-900 rounded-lg cursor-pointer transition-colors">
+                                <span className="material-symbols-outlined">settings</span>
+                                <p className="text-sm font-medium leading-normal hidden lg:block">Settings</p>
+                            </Link>
+                        </div>
+                    </aside>
+                    <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-background-dark">
+                        <header className="flex items-center justify-between whitespace-nowrap border-b border-border-dark px-8 py-3 bg-surface-dark shrink-0 z-20">
+                            <div className="flex items-center gap-4 text-white">
+                                <div className="size-8 text-white"><LogoIcon /></div>
+                                <h2 className="text-white text-lg font-bold leading-tight tracking-[-0.015em]">PresentAI</h2>
+                            </div>
+                            <div className="flex gap-4 items-center">
+                                <Link to="/practice" className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors">
+                                    <span className="material-symbols-outlined text-[18px]">play_arrow</span>
+                                    Practice Again
+                                </Link>
+                            </div>
+                        </header>
+                        <div className="flex-1 overflow-y-auto bg-background-dark p-6 lg:p-10 pb-24">
+                            <div className="max-w-[1200px] mx-auto flex flex-col gap-8">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-2 border-b border-border-dark/50">
+                                    <div className="flex flex-col gap-2 max-w-2xl">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="bg-green-500/10 text-green-400 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-green-500/20">Completed</span>
+                                            <span className="text-text-secondary text-sm">Session #42 • Oct 24, 2023</span>
+                                        </div>
+                                        <h1 className="text-white text-3xl lg:text-4xl font-black leading-tight tracking-[-0.033em]">Great job, Alex! <br /><span className="text-zinc-500 font-medium">Here is your session breakdown.</span></h1>
+                                    </div>
+                                    <div className="flex items-center gap-6 bg-surface-card p-4 rounded-xl border border-border-dark">
+                                        <div className="relative size-20 flex items-center justify-center rounded-full" style={{ background: "conic-gradient(#3b82f6 84%, #27272a 0)" }}>
+                                            <div className="absolute inset-[6px] bg-surface-card rounded-full flex items-center justify-center flex-col">
+                                                <span className="text-xl font-bold text-white">84</span>
+                                                <span className="text-[10px] text-zinc-500 uppercase font-bold">Score</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col gap-1 pr-4">
+                                            <div className="flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-text-secondary text-[18px]">timer</span>
+                                                <span className="text-white font-semibold">14m 30s</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {/* Detailed Analytics Section (Shortened for brevity but keeping key visual elements) */}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                    <div className="lg:col-span-8 flex flex-col gap-6">
+                                        <div className="bg-surface-card border border-border-dark rounded-xl overflow-hidden flex flex-col shadow-xl shadow-black/40">
+                                            <div className="aspect-video bg-black relative group cursor-pointer" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDOAdiR_02DCdczJlc4EWq7GjFcU9bfNMKIbGelAQs1hjnSduaOaKcJOsarrE11oNJMZfabP4FMtNl-cD13HhcYa-jKXnv6QuDHfBjEuuUU1vIV39qw-HSaUJ1IkqNYIGuFWkFz5xM1Q_cyX34Pmg8oJB7-ZIuc5OTHojV7PB0mR3mJsT5HxBwePShSJEGS0NDI8R5OPsWIs2KGy0wlWLkGZ7DB6xUp9rDESzToZGWWUJvUdgjfPQHLZpyWUAn8yP1ppC8dYfXozWAQ')", backgroundSize: "cover", backgroundPosition: "center" }}>
+                                                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center">
+                                                    <button className="size-16 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center transition-transform hover:scale-105 backdrop-blur-md shadow-2xl border border-white/20">
+                                                        <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* AI Analysis Block */}
+                                        <div className="bg-surface-card border border-border-dark rounded-xl p-6 relative overflow-hidden">
+                                            <h3 className="text-white font-semibold text-lg mb-4 flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-purple-400">psychology</span>
+                                                AI Analysis
+                                            </h3>
+                                            <div className="bg-zinc-900/50 p-4 rounded-lg border border-border-dark mb-6">
+                                                <p className="text-zinc-300 leading-relaxed text-sm">
+                                                    <strong className="text-white">Overall:</strong> Your opening was strong, demonstrating confidence. However, your energy dipped around minute 8, correlating with a decrease in eye contact. You recovered well in the Q&A section. Your speech pace is slightly fast but clear.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="lg:col-span-4 flex flex-col gap-6">
+                                        {/* Score Cards */}
+                                        <div className="bg-surface-card border border-border-dark rounded-xl p-5">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <p className="text-text-secondary text-xs font-medium uppercase tracking-wider">Speech Pace</p>
+                                                    <h4 className="text-white text-2xl font-bold mt-1">130 <span className="text-sm font-normal text-text-secondary">WPM</span></h4>
+                                                </div>
+                                                <div className="bg-purple-500/10 p-2 rounded-lg text-purple-400 border border-purple-500/20">
+                                                    <span className="material-symbols-outlined">graphic_eq</span>
+                                                </div>
+                                            </div>
+                                            {/* Fake waveform */}
+                                            <div className="h-16 flex items-center justify-between gap-0.5">
+                                                <div className="waveform-bar h-4 active"></div>
+                                                <div className="waveform-bar h-8 active"></div>
+                                                <div className="waveform-bar h-5"></div>
+                                                <div className="waveform-bar h-12 bg-purple-500"></div>
+                                                <div className="waveform-bar h-6 active"></div>
+                                                <div className="waveform-bar h-4"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="absolute bottom-0 w-full bg-surface-dark/95 backdrop-blur-md border-t border-border-dark px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 z-30">
+                            <p className="text-text-secondary text-sm hidden sm:block">Analysis generated in 1.2s</p>
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-transparent border border-border-dark text-white hover:bg-white/5 rounded-lg text-sm font-medium transition-colors">
+                                    <span className="material-symbols-outlined text-[18px]">share</span>
+                                    Share
+                                </button>
+                                <button onClick={() => navigate('/')} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-black hover:bg-gray-200 rounded-lg text-sm font-bold transition-colors">
+                                    <span className="material-symbols-outlined text-[18px]">save</span>
+                                    Save to Dashboard
+                                </button>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        // --- App ---
+        const App = () => {
+            return (
+                <MemoryRouter initialEntries={['/']}>
+                    <Routes>
+                        <Route path="/" element={<DashboardPage />} />
+                        <Route path="/practice" element={<PracticePage />} />
+                        <Route path="/progress" element={<ProgressPage />} />
+                        <Route path="/settings" element={<SettingsPage />} />
+                        <Route path="/feedback" element={<FeedbackPage />} />
+                    </Routes>
+                </MemoryRouter>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

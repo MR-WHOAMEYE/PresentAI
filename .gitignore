@@ -1,0 +1,54 @@
+# Node / Frontend
+node_modules/
+/dist/
+/.vite/
+/.cache/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Python / Backend
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+env/
+venv/
+ENV/
+env.bak/
+*.sqlite3
+*.db
+
+# Environment files (keep secret)
+.env
+.env.*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE / Editor
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Build artefacts
+build/
+coverage/
+*.log
+
+# Misc
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Vite specific
+.vite/
+
+# Cloudinary cache (if any)
+cloudinary_cache/
