@@ -37,10 +37,20 @@ def create_app(config_name='default'):
     app.config['SESSION_COOKIE_SECURE'] = True
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     
-    # Initialize CORS
-    frontend_url = app.config.get('FRONTEND_URL', 'http://localhost:5173')
+    # Initialize CORS - build list of allowed origins
+    frontend_url = app.config.get('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+    allowed_origins = [
+        frontend_url,
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "https://presentai-frontend.vercel.app",
+        "https://presentai-frontend-tharankeswarans-projects.vercel.app",
+    ]
+    # Add any Vercel preview URLs pattern
     CORS(app, 
-         resources={r"/*": {"origins": [frontend_url, "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"]}},
+         resources={r"/*": {"origins": allowed_origins}},
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
