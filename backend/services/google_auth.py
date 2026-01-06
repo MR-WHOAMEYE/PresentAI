@@ -8,18 +8,18 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from datetime import datetime
 
-from config import Config
-
+from flask import current_app
 
 class GoogleAuthService:
     """Handles Google OAuth 2.0 authentication"""
     
-    def __init__(self):
-        self.client_config = {
+    def _get_client_config(self):
+        """Get Google OAuth client configuration from app config"""
+        return {
             "web": {
-                "client_id": Config.GOOGLE_CLIENT_ID,
-                "client_secret": Config.GOOGLE_CLIENT_SECRET,
-                "redirect_uris": [Config.GOOGLE_REDIRECT_URI],
+                "client_id": current_app.config.get('GOOGLE_CLIENT_ID'),
+                "client_secret": current_app.config.get('GOOGLE_CLIENT_SECRET'),
+                "redirect_uris": [current_app.config.get('GOOGLE_REDIRECT_URI', 'http://localhost:5000/auth/callback')],
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token"
             }
@@ -27,10 +27,13 @@ class GoogleAuthService:
     
     def get_authorization_url(self, state=None):
         """Generate OAuth authorization URL"""
+        client_config = self._get_client_config()
+        redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI', 'http://localhost:5000/auth/callback')
+        
         flow = Flow.from_client_config(
-            self.client_config,
-            scopes=Config.GOOGLE_SCOPES,
-            redirect_uri=Config.GOOGLE_REDIRECT_URI
+            client_config,
+            scopes=current_app.config.get('GOOGLE_SCOPES'),
+            redirect_uri=redirect_uri
         )
         
         authorization_url, state = flow.authorization_url(
@@ -44,10 +47,13 @@ class GoogleAuthService:
     
     def exchange_code_for_tokens(self, code):
         """Exchange authorization code for tokens"""
+        client_config = self._get_client_config()
+        redirect_uri = current_app.config.get('GOOGLE_REDIRECT_URI', 'http://localhost:5000/auth/callback')
+        
         flow = Flow.from_client_config(
-            self.client_config,
-            scopes=Config.GOOGLE_SCOPES,
-            redirect_uri=Config.GOOGLE_REDIRECT_URI
+            client_config,
+            scopes=current_app.config.get('GOOGLE_SCOPES'),
+            redirect_uri=redirect_uri
         )
         
         flow.fetch_token(code=code)
@@ -78,8 +84,8 @@ class GoogleAuthService:
             token=None,
             refresh_token=refresh_token,
             token_uri="https://oauth2.googleapis.com/token",
-            client_id=Config.GOOGLE_CLIENT_ID,
-            client_secret=Config.GOOGLE_CLIENT_SECRET
+            client_id=current_app.config.get('GOOGLE_CLIENT_ID'),
+            client_secret=current_app.config.get('GOOGLE_CLIENT_SECRET')
         )
         
         credentials.refresh(Request())
@@ -117,8 +123,8 @@ class GoogleAuthService:
             token=user_doc.get('access_token'),
             refresh_token=user_doc.get('refresh_token'),
             token_uri="https://oauth2.googleapis.com/token",
-            client_id=Config.GOOGLE_CLIENT_ID,
-            client_secret=Config.GOOGLE_CLIENT_SECRET
+            client_id=current_app.config.get('GOOGLE_CLIENT_ID'),
+            client_secret=current_app.config.get('GOOGLE_CLIENT_SECRET')
         )
 
 
