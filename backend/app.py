@@ -32,6 +32,11 @@ def create_app(config_name='default'):
     # Load configuration
     app.config.from_object(config[config_name])
     
+    # Configure session cookies for cross-origin support
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    
     # Initialize CORS
     frontend_url = app.config.get('FRONTEND_URL', 'http://localhost:5173')
     CORS(app, 
