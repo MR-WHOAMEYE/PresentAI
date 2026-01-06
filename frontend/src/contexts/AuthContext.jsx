@@ -15,7 +15,7 @@ export function AuthProvider({ children }) {
 
     async function checkAuthStatus() {
         try {
-            const response = await fetch('/auth/status', { credentials: 'include' })
+            const response = await fetch(`${API_URL}/auth/status`, { credentials: 'include' })
             const data = await response.json()
 
             if (data.authenticated) {
@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
 
     async function logout() {
         try {
-            await fetch('/auth/logout', {
+            await fetch(`${API_URL}/auth/logout`, {
                 method: 'POST',
                 credentials: 'include'
             })

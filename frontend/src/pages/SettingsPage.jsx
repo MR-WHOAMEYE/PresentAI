@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import Sidebar from '../components/Layout/Sidebar'
 import { useAuth } from '../contexts/AuthContext'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function SettingsPage() {
     const { user, isAuthenticated } = useAuth()
     const [settings, setSettings] = useState({
@@ -42,7 +44,7 @@ export default function SettingsPage() {
         setSaving(true)
         setMessage({ type: 'info', text: 'Saving changes...' })
         try {
-            const response = await fetch('/auth/preferences', {
+            const response = await fetch(`${API_URL}/auth/preferences`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -401,7 +403,7 @@ export default function SettingsPage() {
                                 <button
                                     onClick={async () => {
                                         try {
-                                            const response = await fetch('/tts/speak', {
+                                            const response = await fetch(`${API_URL}/tts/speak`, {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },
                                                 credentials: 'include',

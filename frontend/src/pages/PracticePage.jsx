@@ -75,7 +75,7 @@ export default function PracticePage() {
     async function fetchUserPresentations() {
         setLoadingPresentations(true)
         try {
-            const response = await fetch('/presentations', { credentials: 'include' })
+            const response = await fetch(`${API_URL}/presentations`, { credentials: 'include' })
             if (response.ok) {
                 const data = await response.json()
                 setUserPresentations(data.presentations || [])
@@ -89,7 +89,7 @@ export default function PracticePage() {
     async function selectPresentation(pres) {
         setLoading(true)
         try {
-            const response = await fetch(`/presentations/${pres.id}`, { credentials: 'include' })
+            const response = await fetch(`${API_URL}/presentations/${pres.id}`, { credentials: 'include' })
             if (response.ok) {
                 const data = await response.json()
                 setPresentation(data)
@@ -261,7 +261,7 @@ export default function PracticePage() {
 
         let aiFeedback = null
         try {
-            const response = await fetch('/analyze/session-summary', {
+            const response = await fetch(`${API_URL}/analyze/session-summary`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },

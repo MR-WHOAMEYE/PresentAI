@@ -4,6 +4,8 @@ import Sidebar from '../components/Layout/Sidebar'
 import { useAuth } from '../contexts/AuthContext'
 import { useSession } from '../contexts/SessionContext'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function DashboardPage() {
     const { user, isAuthenticated, loading } = useAuth()
     const { sessions, fetchSessions } = useSession()
@@ -20,7 +22,7 @@ export default function DashboardPage() {
 
     async function fetchStats() {
         try {
-            const response = await fetch('/sessions/stats', { credentials: 'include' })
+            const response = await fetch(`${API_URL}/sessions/stats`, { credentials: 'include' })
             if (response.ok) {
                 const data = await response.json()
                 setStats(data)
@@ -32,7 +34,7 @@ export default function DashboardPage() {
 
     async function fetchPresentations() {
         try {
-            const response = await fetch('/presentations', { credentials: 'include' })
+            const response = await fetch(`${API_URL}/presentations`, { credentials: 'include' })
             if (response.ok) {
                 const data = await response.json()
                 setPresentations(data.presentations || [])

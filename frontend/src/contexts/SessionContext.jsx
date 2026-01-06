@@ -1,5 +1,7 @@
 import { createContext, useContext, useState } from 'react'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const SessionContext = createContext(null)
 
 export function SessionProvider({ children }) {
@@ -25,7 +27,7 @@ export function SessionProvider({ children }) {
 
     async function fetchSessions() {
         try {
-            const response = await fetch('/sessions', { credentials: 'include' })
+            const response = await fetch(`${API_URL}/sessions`, { credentials: 'include' })
             if (response.ok) {
                 const data = await response.json()
                 setSessions(data.sessions || [])
@@ -37,7 +39,7 @@ export function SessionProvider({ children }) {
 
     async function createSession(presentationId, presentationTitle) {
         try {
-            const response = await fetch('/sessions', {
+            const response = await fetch(`${API_URL}/sessions`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
@@ -58,7 +60,7 @@ export function SessionProvider({ children }) {
         if (!currentSession) return
 
         try {
-            const response = await fetch(`/sessions/${currentSession.id}/complete`, {
+            const response = await fetch(`${API_URL}/sessions/${currentSession.id}/complete`, {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },

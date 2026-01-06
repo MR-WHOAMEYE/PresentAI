@@ -3,6 +3,8 @@
  * Handles real-time voice feedback using Gemini + ElevenLabs
  */
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 class VoiceFeedbackService {
     constructor() {
         this.isEnabled = false
@@ -41,7 +43,7 @@ class VoiceFeedbackService {
 
         try {
             // Get quick feedback from Gemini
-            const response = await fetch('/analyze/realtime-voice', {
+            const response = await fetch(`${API_URL}/analyze/realtime-voice`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
@@ -83,7 +85,7 @@ class VoiceFeedbackService {
         this.isSpeaking = true
 
         try {
-            const response = await fetch('/tts/speak', {
+            const response = await fetch(`${API_URL}/tts/speak`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
