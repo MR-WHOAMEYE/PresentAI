@@ -40,7 +40,7 @@ def google_callback():
     # Check for errors
     error = request.args.get('error')
     if error:
-        return redirect(f"{Config.FRONTEND_URL}?error={error}")
+        return redirect(f"{current_app.config.get('FRONTEND_URL')}?error={error}")
     
     # Exchange code for tokens
     code = request.args.get('code')
@@ -88,11 +88,11 @@ def google_callback():
         session['user_id'] = user_id
         
         # Redirect to frontend with success
-        return redirect(f"{Config.FRONTEND_URL}?auth=success")
+        return redirect(f"{current_app.config.get('FRONTEND_URL')}?auth=success")
         
     except Exception as e:
         print(f"OAuth error: {e}")
-        return redirect(f"{Config.FRONTEND_URL}?error=auth_failed")
+        return redirect(f"{current_app.config.get('FRONTEND_URL')}?error=auth_failed")
 
 
 @auth_bp.route('/status')
