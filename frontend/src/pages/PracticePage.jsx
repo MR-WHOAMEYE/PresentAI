@@ -12,6 +12,8 @@ import SpeechAnalyzer from '../analyzers/SpeechAnalyzer'
 import RecordingService from '../services/RecordingService'
 import voiceFeedbackService from '../services/VoiceFeedbackService'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function PracticePage() {
     const navigate = useNavigate()
     const { isAuthenticated } = useAuth()
@@ -607,7 +609,7 @@ export default function PracticePage() {
                             <div className="flex flex-col items-center justify-center py-12">
                                 <span className="material-symbols-outlined text-6xl text-zinc-700 mb-4">login</span>
                                 <p className="text-zinc-400 text-center mb-4">Sign in to see your presentations</p>
-                                <button onClick={() => window.location.href = 'http://localhost:5000/auth/google'} className="px-6 py-2.5 bg-primary text-white rounded-lg font-medium">
+                                <button onClick={() => window.location.href = `${API_URL}/auth/google`} className="px-6 py-2.5 bg-primary text-white rounded-lg font-medium">
                                     Sign in with Google
                                 </button>
                             </div>
