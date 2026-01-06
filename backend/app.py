@@ -33,8 +33,9 @@ def create_app(config_name='default'):
     app.config.from_object(config[config_name])
     
     # Initialize CORS
+    frontend_url = app.config.get('FRONTEND_URL', 'http://localhost:5173')
     CORS(app, 
-         resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"]}},
+         resources={r"/*": {"origins": [frontend_url, "http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"]}},
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
