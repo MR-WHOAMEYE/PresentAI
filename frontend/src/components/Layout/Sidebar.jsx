@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useState } from 'react'
 
 const LogoIcon = () => (
     <svg className="w-full h-full" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
@@ -17,22 +18,31 @@ const navItems = [
 export default function Sidebar({ collapsed = false }) {
     const location = useLocation()
     const { user, isAuthenticated, login, logout } = useAuth()
+    const [mobileOpen, setMobileOpen] = useState(false)
 
-    return (
-        <aside className={`${collapsed ? 'w-20' : 'w-64'} bg-app-bg border-r border-border-dark flex-col hidden lg:flex shrink-0 z-20 h-full`}>
+    const SidebarContent = ({ isMobile = false }) => (
+        <>
             {/* Logo */}
             <div className="h-16 flex items-center px-6 border-b border-border-dark">
                 <div className="flex items-center gap-3 text-white">
                     <div className="size-6 text-primary"><LogoIcon /></div>
-                    {!collapsed && <h2 className="text-white text-lg font-bold tracking-tight">PresentAI</h2>}
+                    {(!collapsed || isMobile) && <h2 className="text-white text-lg font-bold tracking-tight">PresentAI</h2>}
                 </div>
+                {isMobile && (
+                    <button
+                        onClick={() => setMobileOpen(false)}
+                        className="ml-auto p-2 text-zinc-400 hover:text-white"
+                    >
+                        <span className="material-symbols-outlined">close</span>
+                    </button>
+                )}
             </div>
 
             <div className="flex flex-col justify-between flex-1 p-4 overflow-y-auto">
                 <div className="flex flex-col gap-2">
                     {/* User Profile */}
                     {isAuthenticated && user && (
-                        <div className={`flex gap-3 mb-6 p-2 rounded-lg bg-surface-highlight border border-border-dark items-center ${collapsed ? 'justify-center' : ''}`}>
+                        <div className={`flex gap-3 mb-6 p-2 rounded-lg bg-surface-highlight border border-border-dark items-center ${collapsed && !isMobile ? 'justify-center' : ''}`}>
                             <div
                                 className="bg-center bg-no-repeat bg-cover rounded-full size-10 shrink-0 border border-border-dark"
                                 style={{ backgroundImage: user.picture ? `url("${user.picture}")` : 'none', backgroundColor: '#3b82f6' }}
@@ -43,7 +53,7 @@ export default function Sidebar({ collapsed = false }) {
                                     </div>
                                 )}
                             </div>
-                            {!collapsed && (
+                            {(!collapsed || isMobile) && (
                                 <div className="flex flex-col overflow-hidden">
                                     <h1 className="text-white text-sm font-semibold truncate">{user.name || 'User'}</h1>
                                     <p className="text-zinc-500 text-xs font-medium truncate">{user.email}</p>
@@ -59,7 +69,7 @@ export default function Sidebar({ collapsed = false }) {
                             className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary text-white hover:bg-blue-600 transition-colors mb-4"
                         >
                             <span className="material-symbols-outlined text-[20px]">login</span>
-                            {!collapsed && <span className="text-sm font-medium">Sign in with Google</span>}
+                            {(!collapsed || isMobile) && <span className="text-sm font-medium">Sign in with Google</span>}
                         </button>
                     )}
 
@@ -71,10 +81,11 @@ export default function Sidebar({ collapsed = false }) {
                                 <Link
                                     key={item.path}
                                     to={item.path}
+                                    onClick={() => isMobile && setMobileOpen(false)}
                                     className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
-                                            ? 'bg-white text-black shadow-lg shadow-white/5'
-                                            : 'text-zinc-400 hover:text-white hover:bg-surface-highlight'
-                                        } ${collapsed ? 'justify-center' : ''}`}
+                                        ? 'bg-white text-black shadow-lg shadow-white/5'
+                                        : 'text-zinc-400 hover:text-white hover:bg-surface-highlight'
+                                        } ${collapsed && !isMobile ? 'justify-center' : ''}`}
                                 >
                                     <span
                                         className="material-symbols-outlined text-[20px]"
@@ -82,7 +93,7 @@ export default function Sidebar({ collapsed = false }) {
                                     >
                                         {item.icon}
                                     </span>
-                                    {!collapsed && <p className="text-sm font-medium">{item.label}</p>}
+                                    {(!collapsed || isMobile) && <p className="text-sm font-medium">{item.label}</p>}
                                 </Link>
                             )
                         })}
@@ -93,7 +104,7 @@ export default function Sidebar({ collapsed = false }) {
                 <div className="space-y-1 border-t border-border-dark pt-4">
                     <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-400 hover:text-white hover:bg-surface-highlight transition-colors">
                         <span className="material-symbols-outlined text-[20px]">help</span>
-                        {!collapsed && <p className="text-sm font-medium">Help & Support</p>}
+                        {(!collapsed || isMobile) && <p className="text-sm font-medium">Help & Support</p>}
                     </a>
                     {isAuthenticated && (
                         <button
@@ -101,12 +112,68 @@ export default function Sidebar({ collapsed = false }) {
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
                         >
                             <span className="material-symbols-outlined text-[20px]">logout</span>
-                            {!collapsed && <p className="text-sm font-medium">Sign Out</p>}
+                            {(!collapsed || isMobile) && <p className="text-sm font-medium">Sign Out</p>}
                         </button>
                     )}
                 </div>
             </div>
-        </aside>
+        </>
+    )
+
+    return (
+        <>
+            {/* Desktop Sidebar */}
+            <aside className={`${collapsed ? 'w-20' : 'w-64'} bg-app-bg border-r border-border-dark flex-col hidden lg:flex shrink-0 z-20 h-full`}>
+                <SidebarContent />
+            </aside>
+
+            {/* Mobile Bottom Navigation */}
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-dark border-t border-border-dark safe-area-bottom">
+                <div className="flex items-center justify-around h-16">
+                    {navItems.map(item => {
+                        const isActive = location.pathname === item.path
+                        return (
+                            <Link
+                                key={item.path}
+                                to={item.path}
+                                className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${isActive ? 'text-primary' : 'text-zinc-500'
+                                    }`}
+                            >
+                                <span
+                                    className="material-symbols-outlined text-[22px]"
+                                    style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
+                                >
+                                    {item.icon}
+                                </span>
+                                <span className="text-[10px] font-medium">{item.label}</span>
+                            </Link>
+                        )
+                    })}
+                    <button
+                        onClick={() => setMobileOpen(true)}
+                        className="flex flex-col items-center justify-center flex-1 h-full gap-1 text-zinc-500"
+                    >
+                        <span className="material-symbols-outlined text-[22px]">menu</span>
+                        <span className="text-[10px] font-medium">More</span>
+                    </button>
+                </div>
+            </nav>
+
+            {/* Mobile Drawer */}
+            {mobileOpen && (
+                <div className="lg:hidden fixed inset-0 z-[100]">
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setMobileOpen(false)}
+                    />
+                    {/* Drawer */}
+                    <aside className="absolute left-0 top-0 bottom-0 w-72 bg-app-bg flex flex-col animate-slide-in-left">
+                        <SidebarContent isMobile />
+                    </aside>
+                </div>
+            )}
+        </>
     )
 }
 

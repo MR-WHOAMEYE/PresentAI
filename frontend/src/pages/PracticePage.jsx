@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext'
 // Import analyzers
 import PoseAnalyzer from '../analyzers/PoseAnalyzer'
 import FaceAnalyzer from '../analyzers/FaceAnalyzer'
-import SpeechAnalyzer from '../analyzers/SpeechAnalyzer'
+import HybridSpeechAnalyzer from '../analyzers/HybridSpeechAnalyzer'
 import RecordingService from '../services/RecordingService'
 import voiceFeedbackService from '../services/VoiceFeedbackService'
 
@@ -51,6 +51,12 @@ export default function PracticePage() {
     const [voiceTip, setVoiceTip] = useState('')
     const [showVoiceHUD, setShowVoiceHUD] = useState(false)
     const voiceFeedbackIntervalRef = useRef(null)
+
+    // STT mode indicator
+    const [sttMode, setSttMode] = useState('detecting')
+
+    // Mobile panel state
+    const [mobilePanel, setMobilePanel] = useState('main') // 'main' | 'slides' | 'metrics'
 
     useEffect(() => {
         metricsRef.current = metrics
@@ -155,7 +161,7 @@ export default function PracticePage() {
             await faceAnalyzerRef.current.initialize()
         }
 
-        speechAnalyzerRef.current = new SpeechAnalyzer({ baseUrl: '' })
+        speechAnalyzerRef.current = new HybridSpeechAnalyzer()
         speechAnalyzerRef.current.onResult((result) => {
             if (result.fullTranscript) setTranscript(result.fullTranscript)
             updateMetrics({
@@ -164,7 +170,11 @@ export default function PracticePage() {
                 speechRate: result.wpm
             })
         })
-        speechAnalyzerRef.current.start()
+        speechAnalyzerRef.current.onModeChange((mode) => {
+            setSttMode(mode)
+        })
+        await speechAnalyzerRef.current.start()
+        setSttMode(speechAnalyzerRef.current.getMode())
     }
 
     function stopAnalyzers() {
@@ -335,8 +345,8 @@ export default function PracticePage() {
         <div className="flex h-screen w-full overflow-hidden bg-background-dark font-display text-white">
             <Sidebar collapsed />
 
-            {/* Left Panel - Slide Thumbnails */}
-            <aside className="w-28 bg-surface-dark border-r border-border-dark flex flex-col shrink-0">
+            {/* Left Panel - Slide Thumbnails (Desktop only) */}
+            <aside className="hidden md:flex w-28 bg-surface-dark border-r border-border-dark flex-col shrink-0">
                 <div className="p-3 border-b border-border-dark">
                     <h3 className="text-primary text-sm font-bold">Slide</h3>
                 </div>
@@ -369,7 +379,7 @@ export default function PracticePage() {
             </aside>
 
             {/* Center Panel - Slideshow + Transcription */}
-            <main className="flex-1 flex flex-col h-full overflow-hidden">
+            <main className="flex-1 flex flex-col h-full overflow-hidden pb-16 lg:pb-0">
                 {/* Header */}
                 <header className="flex items-center justify-between border-b border-border-dark px-4 py-2 bg-black/50 backdrop-blur-md shrink-0 z-20">
                     <div className="flex items-center gap-3">
@@ -479,8 +489,10 @@ export default function PracticePage() {
                             </h3>
                             {isPracticing && (
                                 <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                    <span className="text-green-400 text-xs font-medium">Listening</span>
+                                    <div className={`w-2 h-2 rounded-full animate-pulse ${sttMode === 'backend' ? 'bg-blue-500' : 'bg-green-500'}`}></div>
+                                    <span className={`text-xs font-medium ${sttMode === 'backend' ? 'text-blue-400' : 'text-green-400'}`}>
+                                        {sttMode === 'backend' ? '⚡ Fast Mode' : sttMode === 'webspeech' ? '🌐 Web Speech' : 'Detecting...'}
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -493,8 +505,8 @@ export default function PracticePage() {
                 </div>
             </main>
 
-            {/* Right Panel - Metrics + Camera */}
-            <aside className="w-72 bg-surface-dark border-l border-border-dark flex flex-col shrink-0">
+            {/* Right Panel - Metrics + Camera (Desktop only) */}
+            <aside className="hidden lg:flex w-72 bg-surface-dark border-l border-border-dark flex-col shrink-0">
                 <div className="p-4 border-b border-border-dark">
                     <h3 className="text-white font-bold text-sm uppercase tracking-wider">Real-Time Metrics</h3>
                 </div>
@@ -676,6 +688,46 @@ export default function PracticePage() {
                     </div>
                 </div>
             )}
+
+            {/* Mobile Floating Metrics Button */}
+            {isPracticing && (
+                <div className="lg:hidden fixed bottom-20 right-4 z-40 flex flex-col gap-2">
+                    {/* Quick metrics display */}
+                    <div className="bg-surface-dark/90 backdrop-blur-md rounded-xl border border-border-dark p-3 shadow-lg">
+                        <div className="flex items-center gap-3">
+                            <CircularProgress value={overallScore} size={40} strokeWidth={3} />
+                            <div className="text-xs">
+                                <p className="text-zinc-400">Score</p>
+                                <p className="text-white font-bold">{overallLabel}</p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                            <div className="flex items-center gap-1">
+                                <span className="material-symbols-outlined text-blue-400 text-[14px]">visibility</span>
+                                <span className="text-white">{Math.round(metrics.eyeContactPercent || 0)}%</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className="material-symbols-outlined text-purple-400 text-[14px]">graphic_eq</span>
+                                <span className="text-white">{metrics.speechRate || 0}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Mobile slide counter overlay */}
+            {presentation && (
+                <div className="md:hidden fixed bottom-20 left-4 z-40">
+                    <button
+                        onClick={() => setShowSlideModal(true)}
+                        className="bg-surface-dark/90 backdrop-blur-md rounded-xl border border-border-dark px-3 py-2 shadow-lg flex items-center gap-2"
+                    >
+                        <span className="material-symbols-outlined text-primary text-[18px]">slideshow</span>
+                        <span className="text-white text-sm font-medium">{currentSlideIndex + 1}/{presentation.slides?.length || 0}</span>
+                    </button>
+                </div>
+            )}
         </div>
     )
 }
+

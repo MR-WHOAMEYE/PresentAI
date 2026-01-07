@@ -123,3 +123,112 @@ video {
 .slide-active {
     ring: 2px solid white;
 }
+
+/* Mobile Animations */
+@keyframes slide-in-left {
+    from {
+        transform: translateX(-100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes slide-in-bottom {
+    from {
+        transform: translateY(100%);
+    }
+
+    to {
+        transform: translateY(0);
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.animate-slide-in-left {
+    animation: slide-in-left 0.25s ease-out;
+}
+
+.animate-slide-in-bottom {
+    animation: slide-in-bottom 0.25s ease-out;
+}
+
+.animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+}
+
+/* Safe Area Padding for iOS */
+.safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Mobile-specific utilities */
+@media (max-width: 1023px) {
+
+    /* Add bottom padding for bottom nav on mobile */
+    .mobile-pb {
+        padding-bottom: 5rem;
+    }
+
+    /* Hide on mobile */
+    .hide-mobile {
+        display: none !important;
+    }
+}
+
+@media (min-width: 1024px) {
+
+    /* Hide on desktop */
+    .hide-desktop {
+        display: none !important;
+    }
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+    .touch-target {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+/* Prevent text selection on mobile */
+.no-select {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Mobile scrolling improvements */
+.scroll-smooth {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
+
+/* Fix for 100vh on mobile browsers */
+.h-screen-safe {
+    height: 100vh;
+    height: 100dvh;
+}
+
+/* Swipe indicator */
+.swipe-indicator {
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 2px;
+    margin: 8px auto;
+}

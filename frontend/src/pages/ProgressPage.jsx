@@ -1,14 +1,22 @@
 import { Link } from 'react-router-dom'
 import Sidebar from '../components/Layout/Sidebar'
 import { useSession } from '../contexts/SessionContext'
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 
 export default function ProgressPage() {
     const { sessions, fetchSessions } = useSession()
+    const [animateCharts, setAnimateCharts] = useState(false)
 
     useEffect(() => {
         fetchSessions()
     }, [])
+
+    // Trigger animations after data loads
+    useEffect(() => {
+        if (sessions.length > 0) {
+            setTimeout(() => setAnimateCharts(true), 100)
+        }
+    }, [sessions])
 
     // Calculate stats
     const totalSessions = sessions.length
@@ -18,6 +26,139 @@ export default function ProgressPage() {
         : 0
     const totalTime = sessions.reduce((sum, s) => sum + (s.durationSeconds || 0), 0)
     const totalHours = (totalTime / 3600).toFixed(1)
+
+    // Generate Score Trend data from real sessions
+    const scoreTrendData = useMemo(() => {
+        if (completedSessions.length === 0) {
+            return { points: [], path: '', areaPath: '' }
+        }
+
+        // Get last 10 sessions, sorted by date
+        const recentSessions = [...completedSessions]
+            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+            .slice(-10)
+
+        if (recentSessions.length < 2) {
+            const score = recentSessions[0]?.overallScore || 50
+            const y = 100 - score
+            return {
+                points: [{ x: 50, y, score }],
+                path: `M0,${y} L100,${y}`,
+                areaPath: `M0,${y} L100,${y} L100,100 L0,100 Z`
+            }
+        }
+
+        // Map sessions to chart coordinates
+        const points = recentSessions.map((session, i) => {
+            const x = (i / (recentSessions.length - 1)) * 100
+            const y = 100 - (session.overallScore || 50) // Invert for SVG coords
+            return { x, y, score: session.overallScore, date: session.createdAt }
+        })
+
+        // Generate smooth curve path using bezier curves
+        let path = `M${points[0].x},${points[0].y}`
+        for (let i = 1; i < points.length; i++) {
+            const prev = points[i - 1]
+            const curr = points[i]
+            const cpX = (prev.x + curr.x) / 2
+            path += ` C${cpX},${prev.y} ${cpX},${curr.y} ${curr.x},${curr.y}`
+        }
+
+        // Area path for gradient fill
+        const areaPath = path + ` L100,100 L0,100 Z`
+
+        return { points, path, areaPath }
+    }, [completedSessions])
+
+    // Calculate Skill Balance from session metrics
+    const skillBalance = useMemo(() => {
+        if (completedSessions.length === 0) {
+            return {
+                eyeContact: 0,
+                posture: 0,
+                pace: 0,
+                clarity: 0,
+                confidence: 0,
+                engagement: 0
+            }
+        }
+
+        // Average metrics across all completed sessions
+        const totals = completedSessions.reduce((acc, session) => {
+            const metrics = session.metrics || {}
+            return {
+                eyeContact: acc.eyeContact + (metrics.eyeContactPercent || 0),
+                posture: acc.posture + (metrics.postureScore || 0),
+                pace: acc.pace + calculatePaceScore(metrics.speechRate),
+                clarity: acc.clarity + calculateClarityScore(metrics.fillerCount),
+                confidence: acc.confidence + (metrics.confidence || (session.overallScore || 50)),
+                engagement: acc.engagement + ((metrics.eyeContactPercent || 0) + (metrics.postureScore || 0)) / 2
+            }
+        }, { eyeContact: 0, posture: 0, pace: 0, clarity: 0, confidence: 0, engagement: 0 })
+
+        const count = completedSessions.length
+        return {
+            eyeContact: Math.round(totals.eyeContact / count),
+            posture: Math.round(totals.posture / count),
+            pace: Math.round(totals.pace / count),
+            clarity: Math.round(totals.clarity / count),
+            confidence: Math.round(totals.confidence / count),
+            engagement: Math.round(totals.engagement / count)
+        }
+    }, [completedSessions])
+
+    // Helper: Convert speech rate to score (120-150 WPM is optimal)
+    function calculatePaceScore(wpm) {
+        if (!wpm) return 50
+        if (wpm >= 120 && wpm <= 150) return 100
+        if (wpm < 100 || wpm > 180) return 40
+        return 70
+    }
+
+    // Helper: Convert filler count to clarity score
+    function calculateClarityScore(fillerCount) {
+        if (fillerCount === undefined) return 50
+        if (fillerCount === 0) return 100
+        if (fillerCount <= 3) return 85
+        if (fillerCount <= 6) return 70
+        if (fillerCount <= 10) return 55
+        return 40
+    }
+
+    // Generate radar chart polygon points
+    const radarPoints = useMemo(() => {
+        const skills = [
+            skillBalance.eyeContact,
+            skillBalance.posture,
+            skillBalance.pace,
+            skillBalance.clarity,
+            skillBalance.confidence,
+            skillBalance.engagement
+        ]
+
+        const center = 100
+        const radius = 70
+        const angleStep = (2 * Math.PI) / 6
+        const startAngle = -Math.PI / 2 // Start from top
+
+        return skills.map((value, i) => {
+            const angle = startAngle + i * angleStep
+            const r = (value / 100) * radius
+            const x = center + r * Math.cos(angle)
+            const y = center + r * Math.sin(angle)
+            return `${x},${y}`
+        }).join(' ')
+    }, [skillBalance])
+
+    // Skill labels with positions
+    const skillLabels = [
+        { name: 'Eye Contact', value: skillBalance.eyeContact, x: 100, y: 15 },
+        { name: 'Posture', value: skillBalance.posture, x: 175, y: 55 },
+        { name: 'Pace', value: skillBalance.pace, x: 175, y: 145 },
+        { name: 'Clarity', value: skillBalance.clarity, x: 100, y: 190 },
+        { name: 'Confidence', value: skillBalance.confidence, x: 25, y: 145 },
+        { name: 'Engagement', value: skillBalance.engagement, x: 25, y: 55 }
+    ]
 
     return (
         <div className="bg-background-dark font-display text-white overflow-hidden h-screen flex">
@@ -108,51 +249,169 @@ export default function ProgressPage() {
 
                     {/* Chart */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Score Trend Chart */}
                         <div className="lg:col-span-2 bg-surface-dark border border-border-dark rounded-xl p-6">
                             <div className="flex justify-between items-center mb-6">
                                 <div>
                                     <h3 className="text-white text-lg font-bold">Score Trend</h3>
                                     <p className="text-text-secondary text-sm">Overall performance over time</p>
                                 </div>
+                                {completedSessions.length > 0 && (
+                                    <div className="text-right">
+                                        <span className="text-2xl font-bold text-white">{completedSessions[completedSessions.length - 1]?.overallScore || '--'}</span>
+                                        <p className="text-xs text-zinc-500">Latest Score</p>
+                                    </div>
+                                )}
                             </div>
                             <div className="relative w-full h-[300px] flex items-end gap-2 pt-10">
-                                <svg className="w-full h-full absolute inset-0 z-10" preserveAspectRatio="none" viewBox="0 0 100 100">
-                                    <defs>
-                                        <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
-                                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-                                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-                                        </linearGradient>
-                                    </defs>
-                                    <path d="M0,80 C10,75 20,60 30,65 C40,70 50,40 60,35 C70,30 80,45 90,20 L100,15 L100,100 L0,100 Z" fill="url(#chartGradient)" />
-                                    <path d="M0,80 C10,75 20,60 30,65 C40,70 50,40 60,35 C70,30 80,45 90,20 L100,15" fill="none" stroke="#3b82f6" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-                                    <circle cx="30" cy="65" fill="#3b82f6" r="3" stroke="#18181b" strokeWidth="2" />
-                                    <circle cx="60" cy="35" fill="#3b82f6" r="3" stroke="#18181b" strokeWidth="2" />
-                                    <circle cx="90" cy="20" fill="#3b82f6" r="3" stroke="#18181b" strokeWidth="2" />
-                                </svg>
+                                {completedSessions.length === 0 ? (
+                                    <div className="absolute inset-0 flex items-center justify-center text-zinc-500">
+                                        <div className="text-center">
+                                            <span className="material-symbols-outlined text-4xl mb-2">show_chart</span>
+                                            <p>Complete sessions to see your score trend</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <svg className="w-full h-full absolute inset-0 z-10" preserveAspectRatio="none" viewBox="0 0 100 100">
+                                        <defs>
+                                            <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+                                                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+                                                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                                            </linearGradient>
+                                        </defs>
+                                        {/* Grid lines */}
+                                        <g stroke="#333" strokeWidth="0.5" opacity="0.5">
+                                            <line x1="0" y1="25" x2="100" y2="25" />
+                                            <line x1="0" y1="50" x2="100" y2="50" />
+                                            <line x1="0" y1="75" x2="100" y2="75" />
+                                        </g>
+                                        {/* Animated area fill */}
+                                        <path
+                                            d={scoreTrendData.areaPath}
+                                            fill="url(#chartGradient)"
+                                            className={`transition-all duration-1000 ease-out ${animateCharts ? 'opacity-100' : 'opacity-0'}`}
+                                        />
+                                        {/* Animated line */}
+                                        <path
+                                            d={scoreTrendData.path}
+                                            fill="none"
+                                            stroke="#3b82f6"
+                                            strokeWidth="2"
+                                            vectorEffect="non-scaling-stroke"
+                                            className={`transition-all duration-1000 ease-out`}
+                                            style={{
+                                                strokeDasharray: animateCharts ? '0' : '1000',
+                                                strokeDashoffset: animateCharts ? '0' : '1000',
+                                                transition: 'stroke-dasharray 1.5s ease-out, stroke-dashoffset 1.5s ease-out'
+                                            }}
+                                        />
+                                        {/* Data points */}
+                                        {scoreTrendData.points.map((point, i) => (
+                                            <g key={i}>
+                                                <circle
+                                                    cx={point.x}
+                                                    cy={point.y}
+                                                    r={animateCharts ? 3 : 0}
+                                                    fill="#3b82f6"
+                                                    stroke="#18181b"
+                                                    strokeWidth="2"
+                                                    className="transition-all duration-500 ease-out"
+                                                    style={{ transitionDelay: `${i * 100 + 500}ms` }}
+                                                />
+                                                {/* Tooltip on hover - simplified for SVG */}
+                                                <title>Score: {point.score}</title>
+                                            </g>
+                                        ))}
+                                    </svg>
+                                )}
+                                {/* Y-axis labels */}
+                                <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-zinc-600 -ml-6">
+                                    <span>100</span>
+                                    <span>75</span>
+                                    <span>50</span>
+                                    <span>25</span>
+                                    <span>0</span>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Skill Balance */}
+                        {/* Skill Balance Radar */}
                         <div className="bg-surface-dark border border-border-dark rounded-xl p-6 flex flex-col">
                             <div className="mb-4">
                                 <h3 className="text-white text-lg font-bold">Skill Balance</h3>
                                 <p className="text-text-secondary text-sm">Your strengths & areas to improve</p>
                             </div>
-                            <div className="flex-1 flex items-center justify-center">
-                                <svg className="w-full max-w-[200px]" viewBox="0 0 200 200">
-                                    <g fill="none" opacity="0.3" stroke="#333333" strokeWidth="1">
-                                        <polygon points="100,20 170,60 170,140 100,180 30,140 30,60" />
-                                        <polygon points="100,40 152.5,70 152.5,130 100,160 47.5,130 47.5,70" />
-                                        <polygon points="100,60 135,80 135,120 100,140 65,120 65,80" />
-                                    </g>
-                                    <polygon fill="rgba(59, 130, 246, 0.2)" points="100,30 160,70 150,135 100,165 50,120 40,70" stroke="#3b82f6" strokeWidth="2" />
-                                </svg>
+                            <div className="flex-1 flex items-center justify-center relative">
+                                {completedSessions.length === 0 ? (
+                                    <div className="text-center text-zinc-500">
+                                        <span className="material-symbols-outlined text-4xl mb-2">radar</span>
+                                        <p className="text-sm">Complete sessions to see skill analysis</p>
+                                    </div>
+                                ) : (
+                                    <svg className="w-full max-w-[200px]" viewBox="0 0 200 200">
+                                        {/* Background hexagon grids */}
+                                        <g fill="none" opacity="0.3" stroke="#333333" strokeWidth="1">
+                                            <polygon points="100,30 161,65 161,135 100,170 39,135 39,65" />
+                                            <polygon points="100,45 147,72.5 147,127.5 100,155 53,127.5 53,72.5" />
+                                            <polygon points="100,60 133,80 133,120 100,140 67,120 67,80" />
+                                            <polygon points="100,75 119,87.5 119,112.5 100,125 81,112.5 81,87.5" />
+                                        </g>
+                                        {/* Axis lines */}
+                                        <g stroke="#333" strokeWidth="0.5" opacity="0.5">
+                                            <line x1="100" y1="30" x2="100" y2="170" />
+                                            <line x1="39" y1="65" x2="161" y2="135" />
+                                            <line x1="39" y1="135" x2="161" y2="65" />
+                                        </g>
+                                        {/* Animated data polygon */}
+                                        <polygon
+                                            points={animateCharts ? radarPoints : "100,100 100,100 100,100 100,100 100,100 100,100"}
+                                            fill="rgba(59, 130, 246, 0.2)"
+                                            stroke="#3b82f6"
+                                            strokeWidth="2"
+                                            className="transition-all duration-1000 ease-out"
+                                        />
+                                        {/* Data point dots */}
+                                        {animateCharts && skillLabels.map((skill, i) => {
+                                            const center = 100
+                                            const radius = 70
+                                            const angleStep = (2 * Math.PI) / 6
+                                            const startAngle = -Math.PI / 2
+                                            const angle = startAngle + i * angleStep
+                                            const r = (skill.value / 100) * radius
+                                            const x = center + r * Math.cos(angle)
+                                            const y = center + r * Math.sin(angle)
+                                            return (
+                                                <circle
+                                                    key={i}
+                                                    cx={x}
+                                                    cy={y}
+                                                    r="4"
+                                                    fill="#3b82f6"
+                                                    stroke="#18181b"
+                                                    strokeWidth="2"
+                                                    className="transition-all duration-500"
+                                                    style={{ transitionDelay: `${i * 100 + 500}ms` }}
+                                                >
+                                                    <title>{skill.name}: {skill.value}%</title>
+                                                </circle>
+                                            )
+                                        })}
+                                    </svg>
+                                )}
                             </div>
-                            <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
-                                <div><span className="text-zinc-400">Eye Contact</span></div>
-                                <div><span className="text-zinc-400">Pace</span></div>
-                                <div><span className="text-zinc-400">Clarity</span></div>
-                            </div>
+                            {/* Skill labels */}
+                            {completedSessions.length > 0 && (
+                                <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
+                                    {skillLabels.slice(0, 3).map((skill, i) => (
+                                        <div key={i} className="flex flex-col items-center">
+                                            <span className="text-zinc-400">{skill.name}</span>
+                                            <span className={`font-bold ${skill.value >= 70 ? 'text-green-400' : skill.value >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                {skill.value}%
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -170,10 +429,15 @@ export default function ProgressPage() {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {sessions.map(session => (
+                                {sessions.map((session, index) => (
                                     <div
                                         key={session.id}
-                                        className="flex items-center justify-between p-4 rounded-lg bg-background-dark border border-border-dark hover:border-zinc-700 transition-colors"
+                                        className="flex items-center justify-between p-4 rounded-lg bg-background-dark border border-border-dark hover:border-zinc-700 transition-all duration-300 hover:scale-[1.01]"
+                                        style={{
+                                            opacity: animateCharts ? 1 : 0,
+                                            transform: animateCharts ? 'translateY(0)' : 'translateY(10px)',
+                                            transition: `opacity 0.3s ease-out ${index * 50}ms, transform 0.3s ease-out ${index * 50}ms`
+                                        }}
                                     >
                                         <div className="flex items-center gap-4">
                                             <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -189,7 +453,9 @@ export default function ProgressPage() {
                                         </div>
                                         {session.overallScore && (
                                             <div className="text-right">
-                                                <span className="text-2xl font-bold text-white">{session.overallScore}</span>
+                                                <span className={`text-2xl font-bold ${session.overallScore >= 70 ? 'text-green-400' : session.overallScore >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                    {session.overallScore}
+                                                </span>
                                                 <span className="text-zinc-500 text-sm">/100</span>
                                             </div>
                                         )}
