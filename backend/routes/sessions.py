@@ -331,7 +331,8 @@ def get_trends(user):
 @sessions_bp.route('/<session_id>/upload-recording', methods=['POST'])
 @require_auth
 def upload_recording(user, session_id):
-    """Upload session recording to Cloudinary"""
+    """Upload session recording to Vercel Blob (or Cloudinary fallback)"""
+    from services.vercel_blob_service import vercel_blob_service
     from services.cloudinary_service import cloudinary_service
     
     db = get_db()
@@ -355,37 +356,51 @@ def upload_recording(user, session_id):
         return jsonify({'error': 'No file selected'}), 400
     
     try:
-        # Upload to Cloudinary
-        result = cloudinary_service.upload_video(
-            video_file=file,
-            session_id=session_id,
-            user_id=str(user['_id'])
-        )
+        # Try Vercel Blob first, then fall back to Cloudinary
+        if vercel_blob_service.configured:
+            result = vercel_blob_service.upload_video_multipart(
+                video_file=file,
+                filename=f"session_{session_id}.webm",
+                session_id=session_id,
+                user_id=str(user['_id'])
+            )
+            storage_type = 'vercel_blob'
+        else:
+            # Fallback to Cloudinary
+            result = cloudinary_service.upload_video_chunked(
+                video_file=file,
+                session_id=session_id,
+                user_id=str(user['_id'])
+            )
+            storage_type = 'cloudinary'
         
         if 'error' in result:
             return jsonify({'error': result['error']}), 500
         
-        # Update session with Cloudinary video data
+        # Update session with video data
+        update_data = {
+            'recording_url': result.get('url'),
+            'recording_storage': storage_type
+        }
+        
+        # Add Cloudinary-specific fields
+        if storage_type == 'cloudinary':
+            update_data['recording_public_id'] = result.get('public_id')
+            update_data['recording_player_url'] = result.get('player_url')
+            update_data['recording_thumbnail'] = result.get('thumbnail_url')
+        
         db.practice_sessions.update_one(
             {'_id': ObjectId(session_id)},
-            {'$set': {
-                'recording_url': result.get('url'),
-                'recording_public_id': result.get('public_id'),
-                'recording_player_url': result.get('player_url'),
-                'recording_thumbnail': result.get('thumbnail_url'),
-                'recording_duration': result.get('duration'),
-                'recording_format': result.get('format')
-            }}
+            {'$set': update_data}
         )
         
         return jsonify({
             'success': True,
+            'storage': storage_type,
             'recording': {
                 'url': result.get('url'),
-                'playerUrl': result.get('player_url'),
-                'thumbnailUrl': result.get('thumbnail_url'),
-                'duration': result.get('duration'),
-                'publicId': result.get('public_id')
+                'playerUrl': result.get('player_url') if storage_type == 'cloudinary' else result.get('url'),
+                'size': result.get('size')
             }
         })
         
@@ -393,3 +408,133 @@ def upload_recording(user, session_id):
         print(f"Error uploading recording: {e}")
         return jsonify({'error': 'Failed to upload recording'}), 500
 
+
+# Temporary storage for chunks (in production, use Redis or similar)
+_chunk_storage = {}
+
+@sessions_bp.route('/<session_id>/upload-chunk', methods=['POST'])
+@require_auth
+def upload_chunk(user, session_id):
+    """Upload a video chunk for a session"""
+    import tempfile
+    import os
+    from services.cloudinary_service import cloudinary_service
+    
+    db = get_db()
+    
+    # Get session
+    practice_session = db.practice_sessions.find_one({
+        '_id': ObjectId(session_id),
+        'user_id': user['_id']
+    })
+    
+    if not practice_session:
+        return jsonify({'error': 'Session not found'}), 404
+    
+    # Get chunk data
+    if 'chunk' not in request.files:
+        return jsonify({'error': 'No chunk provided'}), 400
+    
+    chunk = request.files['chunk']
+    chunk_index = int(request.form.get('chunkIndex', 0))
+    total_chunks = int(request.form.get('totalChunks', 1))
+    upload_id = request.form.get('uploadId', session_id)
+    is_last_chunk = request.form.get('isLastChunk', 'false') == 'true'
+    
+    # Initialize storage for this upload
+    if upload_id not in _chunk_storage:
+        _chunk_storage[upload_id] = {
+            'chunks': {},
+            'total': total_chunks,
+            'session_id': session_id,
+            'user_id': str(user['_id'])
+        }
+    
+    # Store chunk data
+    _chunk_storage[upload_id]['chunks'][chunk_index] = chunk.read()
+    print(f"Received chunk {chunk_index + 1}/{total_chunks} for upload {upload_id}")
+    
+    # If this is the last chunk, combine and upload
+    if is_last_chunk:
+        try:
+            storage = _chunk_storage[upload_id]
+            
+            # Combine all chunks
+            combined_data = b''
+            for i in range(storage['total']):
+                if i in storage['chunks']:
+                    combined_data += storage['chunks'][i]
+            
+            # Save to temp file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp:
+                temp.write(combined_data)
+                temp_path = temp.name
+            
+            # Upload to Vercel Blob or Cloudinary
+            if vercel_blob_service.configured:
+                result = vercel_blob_service.upload_video_multipart(
+                    video_file=temp_path,
+                    filename=f"session_{session_id}.webm",
+                    session_id=session_id,
+                    user_id=storage['user_id']
+                )
+                storage_type = 'vercel_blob'
+            else:
+                result = cloudinary_service.upload_video_chunked(
+                    video_file=temp_path,
+                    session_id=session_id,
+                    user_id=storage['user_id']
+                )
+                storage_type = 'cloudinary'
+            
+            # Clean up
+            os.unlink(temp_path)
+            del _chunk_storage[upload_id]
+            
+            if 'error' in result:
+                return jsonify({'error': result['error']}), 500
+            
+            # Update session with video data
+            update_data = {
+                'recording_url': result.get('url'),
+                'recording_storage': storage_type
+            }
+            
+            if storage_type == 'cloudinary':
+                update_data['recording_public_id'] = result.get('public_id')
+                update_data['recording_player_url'] = result.get('player_url')
+                update_data['recording_thumbnail'] = result.get('thumbnail_url')
+                update_data['recording_duration'] = result.get('duration')
+                update_data['recording_format'] = result.get('format')
+            else:
+                # Vercel Blob specific or generic data
+                update_data['recording_size'] = result.get('size')
+                update_data['recording_content_type'] = result.get('contentType')
+            
+            db.practice_sessions.update_one(
+                {'_id': ObjectId(session_id)},
+                {'$set': update_data}
+            )
+            
+            return jsonify({
+                'success': True,
+                'complete': True,
+                'recording': {
+                    'url': result.get('url'),
+                    'playerUrl': result.get('player_url') if storage_type == 'cloudinary' else result.get('url'),
+                    'thumbnailUrl': result.get('thumbnail_url'),
+                    'duration': result.get('duration')
+                }
+            })
+            
+        except Exception as e:
+            print(f"Error combining and uploading chunks: {e}")
+            if upload_id in _chunk_storage:
+                del _chunk_storage[upload_id]
+            return jsonify({'error': str(e)}), 500
+    
+    return jsonify({
+        'success': True,
+        'chunkReceived': chunk_index,
+        'complete': False
+    })

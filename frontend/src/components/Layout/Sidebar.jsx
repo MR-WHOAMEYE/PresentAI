@@ -64,13 +64,13 @@ export default function Sidebar({ collapsed = false, hideMobileNav = false }) {
 
                     {/* Login Button */}
                     {!isAuthenticated && (
-                        <button
-                            onClick={login}
+                        <Link
+                            to="/login"
                             className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary text-white hover:bg-blue-600 transition-colors mb-4"
                         >
                             <span className="material-symbols-outlined text-[20px]">login</span>
-                            {(!collapsed || isMobile) && <span className="text-sm font-medium">Sign in with Google</span>}
-                        </button>
+                            {(!collapsed || isMobile) && <span className="text-sm font-medium">Login / Sign Up</span>}
+                        </Link>
                     )}
 
                     {/* Navigation */}

@@ -52,6 +52,9 @@ class Config:
     # Cloudinary
     CLOUDINARY_URL = os.getenv('CLOUDINARY_URL')
 
+    # Vercel Blob
+    BLOB_READ_WRITE_TOKEN = os.getenv('BLOB_READ_WRITE_TOKEN')
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""

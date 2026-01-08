@@ -9,6 +9,7 @@ from services.google_auth import google_auth_service
 from config import Config
 from datetime import datetime
 import secrets
+import os
 import firebase_admin
 from firebase_admin import auth as firebase_auth, credentials
 
@@ -26,8 +27,18 @@ def init_firebase():
     try:
         # Try to use service account from environment or default credentials
         if not firebase_admin._apps:
+            # Check for explicit project ID
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('FIREBASE_PROJECT_ID')
+            options = {'projectId': project_id} if project_id else None
+            
             # Use default credentials (Application Default Credentials)
-            firebase_admin.initialize_app()
+            firebase_admin.initialize_app(options=options)
+            
+            if project_id:
+                print(f"✅ Firebase initialized with project ID: {project_id}")
+            else:
+                print("⚠️ Firebase initialized without explicit project ID (using ADC)")
+                
         _firebase_initialized = True
     except Exception as e:
         print(f"Firebase Admin initialization note: {e}")

@@ -93,6 +93,78 @@ class CloudinaryService:
             print(f"Cloudinary upload error: {e}")
             return {'error': str(e)}
     
+    def upload_video_chunked(self, video_file, session_id, user_id=None, chunk_size=6000000):
+        """
+        Upload a large video to Cloudinary using chunked upload
+        
+        Args:
+            video_file: File object or path to video
+            session_id: Practice session ID for organizing
+            user_id: Optional user ID for folder organization
+            chunk_size: Size of each chunk in bytes (default 6MB)
+        
+        Returns:
+            dict with video URL and metadata
+        """
+        if not self.configured:
+            return {'error': 'Cloudinary not configured'}
+        
+        try:
+            # Create a unique public ID
+            folder = f"presentation_coach/{user_id}" if user_id else "presentation_coach"
+            public_id = f"session_{session_id}"
+            
+            # Upload options for chunked upload
+            upload_options = {
+                'resource_type': 'video',
+                'public_id': public_id,
+                'overwrite': True,
+                'folder': folder,
+                'chunk_size': chunk_size,
+                'eager': [
+                    {'width': 640, 'height': 360, 'crop': 'limit', 'format': 'mp4'},
+                ],
+                'eager_async': True
+            }
+            
+            # Handle file upload
+            if hasattr(video_file, 'read'):
+                # It's a file object - save to temp file first
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.webm') as temp:
+                    video_file.save(temp)
+                    temp_path = temp.name
+                
+                # Use upload_large for chunked upload
+                result = cloudinary.uploader.upload_large(temp_path, **upload_options)
+                os.unlink(temp_path)  # Clean up temp file
+            else:
+                # It's a file path - use upload_large directly
+                result = cloudinary.uploader.upload_large(video_file, **upload_options)
+            
+            # Generate thumbnail URL
+            thumbnail_url = cloudinary.CloudinaryVideo(result['public_id']).build_url(
+                resource_type='video',
+                format='jpg',
+                transformation=[{'width': 640, 'height': 360, 'crop': 'fill'}]
+            )
+            
+            return {
+                'success': True,
+                'url': result['secure_url'],
+                'public_id': result['public_id'],
+                'duration': result.get('duration'),
+                'format': result.get('format'),
+                'width': result.get('width'),
+                'height': result.get('height'),
+                'bytes': result.get('bytes'),
+                'thumbnail_url': thumbnail_url,
+                'player_url': self.get_player_url(result['public_id'])
+            }
+            
+        except Exception as e:
+            print(f"Cloudinary chunked upload error: {e}")
+            return {'error': str(e)}
+    
     def get_player_url(self, public_id):
         """Get Cloudinary video player embed URL"""
         cloud_name = cloudinary.config().cloud_name

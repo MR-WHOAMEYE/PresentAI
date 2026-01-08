@@ -5,12 +5,12 @@ import CircularProgress from '../components/UI/CircularProgress'
 import { useSession } from '../contexts/SessionContext'
 import { useAuth } from '../contexts/AuthContext'
 
-// Import analyzers
 import PoseAnalyzer from '../analyzers/PoseAnalyzer'
 import FaceAnalyzer from '../analyzers/FaceAnalyzer'
 import HybridSpeechAnalyzer from '../analyzers/HybridSpeechAnalyzer'
 import RecordingService from '../services/RecordingService'
 import voiceFeedbackService from '../services/VoiceFeedbackService'
+import { uploadVideoChunked } from '../services/videoUpload'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -48,6 +48,10 @@ export default function PracticePage() {
     const [showUrlInput, setShowUrlInput] = useState(false)
 
     // Voice HUD state
+    const [countdown, setCountdown] = useState(null)
+    const [showPermissionError, setShowPermissionError] = useState(false)
+    const [uploadProgress, setUploadProgress] = useState(0)
+    const [isUploading, setIsUploading] = useState(false)
     const [voiceTip, setVoiceTip] = useState('')
     const [showVoiceHUD, setShowVoiceHUD] = useState(false)
     const voiceFeedbackIntervalRef = useRef(null)
@@ -316,15 +320,22 @@ export default function PracticePage() {
 
         if (currentSession && isAuthenticated) {
             await completeSession({ overallScore, durationSeconds, transcript, metrics: metricsRef.current, aiFeedback })
+
             if (recordingBlob) {
                 try {
-                    const formData = new FormData()
-                    formData.append('recording', recordingBlob, 'recording.webm')
-                    await fetch(`/sessions/${currentSession.id}/upload-recording`, {
-                        method: 'POST', credentials: 'include', body: formData
+                    setIsUploading(true)
+                    console.log('Uploading recording:', recordingBlob.size, 'bytes')
+
+                    await uploadVideoChunked(recordingBlob, currentSession.id, (progress) => {
+                        setUploadProgress(progress)
+                        console.log(`Upload progress: ${progress}%`)
                     })
+
+                    console.log('Recording uploaded successfully')
                 } catch (error) {
                     console.error('Failed to upload recording:', error)
+                } finally {
+                    setIsUploading(false)
                 }
             }
         }
@@ -461,8 +472,8 @@ export default function PracticePage() {
                                 }
                             }}
                             className={`hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${voiceFeedbackEnabled
-                                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                    : 'bg-zinc-800/50 text-zinc-400 border border-zinc-700 hover:border-zinc-600'
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : 'bg-zinc-800/50 text-zinc-400 border border-zinc-700 hover:border-zinc-600'
                                 }`}
                             title="Voice Coaching Tips"
                         >
@@ -1026,6 +1037,42 @@ export default function PracticePage() {
                     <span className="text-[10px]">Results</span>
                 </Link>
             </div>
+            {/* Upload Progress Modal */}
+            {isUploading && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                    <div className="bg-surface-card border border-border-dark p-8 rounded-2xl max-w-sm w-full flex flex-col items-center text-center">
+                        <div className="relative w-20 h-20 mb-6">
+                            <svg className="w-full h-full transform -rotate-90">
+                                <circle
+                                    cx="40"
+                                    cy="40"
+                                    r="36"
+                                    stroke="currentColor"
+                                    strokeWidth="8"
+                                    fill="transparent"
+                                    className="text-zinc-800"
+                                />
+                                <circle
+                                    cx="40"
+                                    cy="40"
+                                    r="36"
+                                    stroke="currentColor"
+                                    strokeWidth="8"
+                                    fill="transparent"
+                                    strokeDasharray={226.2}
+                                    strokeDashoffset={226.2 - (226.2 * uploadProgress) / 100}
+                                    className="text-primary transition-all duration-300 ease-out"
+                                />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-xl font-bold text-white">{uploadProgress}%</span>
+                            </div>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">Saving Session</h3>
+                        <p className="text-zinc-400">Uploading your recording...</p>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
