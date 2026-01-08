@@ -6,6 +6,9 @@ import { useEffect, useState, useMemo } from 'react'
 export default function ProgressPage() {
     const { sessions, fetchSessions } = useSession()
     const [animateCharts, setAnimateCharts] = useState(false)
+    const [showSessionHistory, setShowSessionHistory] = useState(false)
+    const [dateFilter, setDateFilter] = useState('all') // 'week' | 'month' | 'all'
+    const [selectedSession, setSelectedSession] = useState(null) // For feedback modal
 
     useEffect(() => {
         fetchSessions()
@@ -18,14 +21,44 @@ export default function ProgressPage() {
         }
     }, [sessions])
 
-    // Calculate stats
-    const totalSessions = sessions.length
-    const completedSessions = sessions.filter(s => s.overallScore)
+    // Filter sessions by date range
+    const filteredSessions = useMemo(() => {
+        if (dateFilter === 'all') return sessions
+
+        const now = new Date()
+        const cutoff = new Date()
+
+        if (dateFilter === 'week') {
+            cutoff.setDate(now.getDate() - 7)
+        } else if (dateFilter === 'month') {
+            cutoff.setMonth(now.getMonth() - 1)
+        }
+
+        return sessions.filter(s => {
+            const sessionDate = new Date(s.createdAt || s.startedAt)
+            return sessionDate >= cutoff
+        })
+    }, [sessions, dateFilter])
+
+    // Calculate stats from filtered sessions
+    const totalSessions = filteredSessions.length
+    const completedSessions = filteredSessions.filter(s => s.overallScore)
     const avgScore = completedSessions.length > 0
         ? Math.round(completedSessions.reduce((sum, s) => sum + (s.overallScore || 0), 0) / completedSessions.length)
         : 0
-    const totalTime = sessions.reduce((sum, s) => sum + (s.durationSeconds || 0), 0)
+    const totalTime = filteredSessions.reduce((sum, s) => sum + (s.durationSeconds || 0), 0)
     const totalHours = (totalTime / 3600).toFixed(1)
+
+    // Format date helper
+    const formatDate = (dateStr) => {
+        if (!dateStr) return ''
+        const date = new Date(dateStr)
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+        })
+    }
 
     // Generate Score Trend data from real sessions
     const scoreTrendData = useMemo(() => {
@@ -74,11 +107,11 @@ export default function ProgressPage() {
     const skillBalance = useMemo(() => {
         if (completedSessions.length === 0) {
             return {
-                eyeContact: 0,
+                audienceFocus: 0,
+                headPose: 0,
                 posture: 0,
                 pace: 0,
                 clarity: 0,
-                confidence: 0,
                 engagement: 0
             }
         }
@@ -86,23 +119,34 @@ export default function ProgressPage() {
         // Average metrics across all completed sessions
         const totals = completedSessions.reduce((acc, session) => {
             const metrics = session.metrics || {}
+            const headPose = metrics.headPose || {}
+            const engagement = metrics.engagement || {}
+
+            // Calculate head pose score based on yaw deviation (facing audience)
+            const yaw = Math.abs(headPose.yaw || 0)
+            const headPoseScore = yaw >= 20 ? 90 : yaw >= 15 ? 75 : yaw >= 10 ? 60 : 40
+
+            // Engagement score from the engagement object or fallback
+            const engagementScore = engagement.score ||
+                ((metrics.eyeContactPercent || 0) + (metrics.postureScore || 0)) / 2
+
             return {
-                eyeContact: acc.eyeContact + (metrics.eyeContactPercent || 0),
+                audienceFocus: acc.audienceFocus + (metrics.eyeContactPercent || 0),
+                headPose: acc.headPose + headPoseScore,
                 posture: acc.posture + (metrics.postureScore || 0),
                 pace: acc.pace + calculatePaceScore(metrics.speechRate),
                 clarity: acc.clarity + calculateClarityScore(metrics.fillerCount),
-                confidence: acc.confidence + (metrics.confidence || (session.overallScore || 50)),
-                engagement: acc.engagement + ((metrics.eyeContactPercent || 0) + (metrics.postureScore || 0)) / 2
+                engagement: acc.engagement + engagementScore
             }
-        }, { eyeContact: 0, posture: 0, pace: 0, clarity: 0, confidence: 0, engagement: 0 })
+        }, { audienceFocus: 0, headPose: 0, posture: 0, pace: 0, clarity: 0, engagement: 0 })
 
         const count = completedSessions.length
         return {
-            eyeContact: Math.round(totals.eyeContact / count),
+            audienceFocus: Math.round(totals.audienceFocus / count),
+            headPose: Math.round(totals.headPose / count),
             posture: Math.round(totals.posture / count),
             pace: Math.round(totals.pace / count),
             clarity: Math.round(totals.clarity / count),
-            confidence: Math.round(totals.confidence / count),
             engagement: Math.round(totals.engagement / count)
         }
     }, [completedSessions])
@@ -128,11 +172,11 @@ export default function ProgressPage() {
     // Generate radar chart polygon points
     const radarPoints = useMemo(() => {
         const skills = [
-            skillBalance.eyeContact,
+            skillBalance.audienceFocus,
+            skillBalance.headPose,
             skillBalance.posture,
             skillBalance.pace,
             skillBalance.clarity,
-            skillBalance.confidence,
             skillBalance.engagement
         ]
 
@@ -150,14 +194,14 @@ export default function ProgressPage() {
         }).join(' ')
     }, [skillBalance])
 
-    // Skill labels with positions
+    // Skill labels with positions and icons
     const skillLabels = [
-        { name: 'Eye Contact', value: skillBalance.eyeContact, x: 100, y: 15 },
-        { name: 'Posture', value: skillBalance.posture, x: 175, y: 55 },
-        { name: 'Pace', value: skillBalance.pace, x: 175, y: 145 },
-        { name: 'Clarity', value: skillBalance.clarity, x: 100, y: 190 },
-        { name: 'Confidence', value: skillBalance.confidence, x: 25, y: 145 },
-        { name: 'Engagement', value: skillBalance.engagement, x: 25, y: 55 }
+        { name: 'Audience Focus', value: skillBalance.audienceFocus, icon: 'visibility', x: 100, y: 15 },
+        { name: 'Head Pose', value: skillBalance.headPose, icon: 'face', x: 175, y: 55 },
+        { name: 'Posture', value: skillBalance.posture, icon: 'accessibility_new', x: 175, y: 145 },
+        { name: 'Pace', value: skillBalance.pace, icon: 'speed', x: 100, y: 190 },
+        { name: 'Clarity', value: skillBalance.clarity, icon: 'mic', x: 25, y: 145 },
+        { name: 'Engagement', value: skillBalance.engagement, icon: 'groups', x: 25, y: 55 }
     ]
 
     return (
@@ -186,9 +230,33 @@ export default function ProgressPage() {
                         </div>
                         <div className="flex items-center gap-4 bg-surface-dark p-1.5 rounded-xl border border-border-dark">
                             <div className="flex bg-background-dark rounded-lg p-1 border border-border-dark">
-                                <button className="px-4 py-1.5 rounded text-sm font-medium text-text-secondary hover:text-white transition-colors">Week</button>
-                                <button className="px-4 py-1.5 rounded bg-surface-dark text-white text-sm font-bold shadow-sm border border-border-dark">Month</button>
-                                <button className="px-4 py-1.5 rounded text-text-secondary hover:text-white transition-colors text-sm font-medium">All Time</button>
+                                <button
+                                    onClick={() => setDateFilter('week')}
+                                    className={`px-3 md:px-4 py-1.5 rounded text-xs md:text-sm font-medium transition-colors ${dateFilter === 'week'
+                                        ? 'bg-surface-dark text-white font-bold shadow-sm border border-border-dark'
+                                        : 'text-text-secondary hover:text-white'
+                                        }`}
+                                >
+                                    Week
+                                </button>
+                                <button
+                                    onClick={() => setDateFilter('month')}
+                                    className={`px-3 md:px-4 py-1.5 rounded text-xs md:text-sm font-medium transition-colors ${dateFilter === 'month'
+                                        ? 'bg-surface-dark text-white font-bold shadow-sm border border-border-dark'
+                                        : 'text-text-secondary hover:text-white'
+                                        }`}
+                                >
+                                    Month
+                                </button>
+                                <button
+                                    onClick={() => setDateFilter('all')}
+                                    className={`px-3 md:px-4 py-1.5 rounded text-xs md:text-sm font-medium transition-colors ${dateFilter === 'all'
+                                        ? 'bg-surface-dark text-white font-bold shadow-sm border border-border-dark'
+                                        : 'text-text-secondary hover:text-white'
+                                        }`}
+                                >
+                                    All Time
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -399,15 +467,34 @@ export default function ProgressPage() {
                                     </svg>
                                 )}
                             </div>
-                            {/* Skill labels */}
+                            {/* Skill labels with icons */}
                             {completedSessions.length > 0 && (
-                                <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
-                                    {skillLabels.slice(0, 3).map((skill, i) => (
-                                        <div key={i} className="flex flex-col items-center">
-                                            <span className="text-zinc-400">{skill.name}</span>
-                                            <span className={`font-bold ${skill.value >= 70 ? 'text-green-400' : skill.value >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                                {skill.value}%
+                                <div className="grid grid-cols-2 gap-3 mt-4">
+                                    {skillLabels.map((skill, i) => (
+                                        <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-background-dark/50">
+                                            <span className={`material-symbols-outlined text-[16px] ${skill.value >= 70 ? 'text-green-400' :
+                                                skill.value >= 50 ? 'text-yellow-400' : 'text-red-400'
+                                                }`}>
+                                                {skill.icon}
                                             </span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-zinc-400 text-[10px] truncate">{skill.name}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full transition-all duration-1000 ${skill.value >= 70 ? 'bg-green-500' :
+                                                                skill.value >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                }`}
+                                                            style={{ width: animateCharts ? `${skill.value}%` : '0%' }}
+                                                        />
+                                                    </div>
+                                                    <span className={`text-xs font-bold ${skill.value >= 70 ? 'text-green-400' :
+                                                        skill.value >= 50 ? 'text-yellow-400' : 'text-red-400'
+                                                        }`}>
+                                                        {skill.value}%
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -415,57 +502,268 @@ export default function ProgressPage() {
                         </div>
                     </div>
 
-                    {/* Session History */}
-                    <div className="bg-surface-dark border border-border-dark rounded-xl p-6">
-                        <h3 className="text-white text-lg font-bold mb-4">Session History</h3>
-                        {sessions.length === 0 ? (
-                            <div className="text-center py-12">
-                                <span className="material-symbols-outlined text-6xl text-zinc-700 mb-4">history</span>
-                                <p className="text-zinc-500">No sessions yet. Start practicing!</p>
-                                <Link to="/practice" className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium">
-                                    <span className="material-symbols-outlined text-[18px]">play_arrow</span>
-                                    Start Practice
-                                </Link>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {sessions.map((session, index) => (
-                                    <div
-                                        key={session.id}
-                                        className="flex items-center justify-between p-4 rounded-lg bg-background-dark border border-border-dark hover:border-zinc-700 transition-all duration-300 hover:scale-[1.01]"
-                                        style={{
-                                            opacity: animateCharts ? 1 : 0,
-                                            transform: animateCharts ? 'translateY(0)' : 'translateY(10px)',
-                                            transition: `opacity 0.3s ease-out ${index * 50}ms, transform 0.3s ease-out ${index * 50}ms`
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                                                <span className="material-symbols-outlined">videocam</span>
+                    {/* Session History - Hidden on mobile by default */}
+                    <div className="bg-surface-dark border border-border-dark rounded-xl p-4 md:p-6">
+                        {/* Mobile: Collapsible header */}
+                        <button
+                            onClick={() => setShowSessionHistory(!showSessionHistory)}
+                            className="md:hidden w-full flex items-center justify-between text-white text-lg font-bold"
+                        >
+                            <span>Session History ({filteredSessions.length})</span>
+                            <span className="material-symbols-outlined text-zinc-400">
+                                {showSessionHistory ? 'expand_less' : 'expand_more'}
+                            </span>
+                        </button>
+                        {/* Desktop: Always visible header */}
+                        <div className="hidden md:flex items-center justify-between mb-4">
+                            <h3 className="text-white text-lg font-bold">Session History</h3>
+                            <span className="text-zinc-500 text-sm">{filteredSessions.length} sessions</span>
+                        </div>
+
+                        {/* Content - hidden on mobile unless expanded */}
+                        <div className={`${showSessionHistory ? 'block mt-4' : 'hidden'} md:block`}>
+                            {filteredSessions.length === 0 ? (
+                                <div className="text-center py-8 md:py-12">
+                                    <span className="material-symbols-outlined text-4xl md:text-6xl text-zinc-700 mb-4">history</span>
+                                    <p className="text-zinc-500 text-sm md:text-base">
+                                        {sessions.length === 0
+                                            ? 'No sessions yet. Start practicing!'
+                                            : `No sessions in the selected ${dateFilter === 'week' ? 'week' : dateFilter === 'month' ? 'month' : 'time period'}`}
+                                    </p>
+                                    <Link to="/practice" className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium">
+                                        <span className="material-symbols-outlined text-[18px]">play_arrow</span>
+                                        Start Practice
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="space-y-2 md:space-y-3">
+                                    {filteredSessions.slice(0, showSessionHistory ? filteredSessions.length : 5).map((session, index) => (
+                                        <button
+                                            key={session.id}
+                                            onClick={() => setSelectedSession(session)}
+                                            className="w-full flex items-center justify-between p-3 md:p-4 rounded-lg bg-background-dark border border-border-dark hover:border-primary/50 hover:bg-surface-dark transition-all duration-300 hover:scale-[1.01] cursor-pointer text-left"
+                                            style={{
+                                                opacity: animateCharts ? 1 : 0,
+                                                transform: animateCharts ? 'translateY(0)' : 'translateY(10px)',
+                                                transition: `opacity 0.3s ease-out ${index * 50}ms, transform 0.3s ease-out ${index * 50}ms`
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                                                <div className="p-1.5 md:p-2 rounded-lg bg-primary/10 text-primary shrink-0">
+                                                    <span className="material-symbols-outlined text-lg md:text-2xl">videocam</span>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-white font-medium text-sm md:text-base truncate">{session.presentationTitle || 'Practice Session'}</p>
+                                                    <p className="text-zinc-500 text-xs md:text-sm">
+                                                        {formatDate(session.createdAt || session.startedAt)} •
+                                                        {session.durationSeconds ? ` ${Math.round(session.durationSeconds / 60)}m` : ' --'}
+                                                        {session.aiFeedback && <span className="text-primary ml-1">• Has Feedback</span>}
+                                                    </p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-white font-medium">{session.presentationTitle || 'Practice Session'}</p>
-                                                <p className="text-zinc-500 text-sm">
-                                                    {new Date(session.createdAt).toLocaleDateString()} •
-                                                    {session.durationSeconds ? ` ${Math.round(session.durationSeconds / 60)}m` : ''}
-                                                </p>
+                                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                {session.overallScore && (
+                                                    <div className="text-right">
+                                                        <span className={`text-lg md:text-2xl font-bold ${session.overallScore >= 70 ? 'text-green-400' : session.overallScore >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                            {session.overallScore}
+                                                        </span>
+                                                        <span className="text-zinc-500 text-xs md:text-sm">/100</span>
+                                                    </div>
+                                                )}
+                                                <span className="material-symbols-outlined text-zinc-600 text-lg">chevron_right</span>
                                             </div>
-                                        </div>
-                                        {session.overallScore && (
-                                            <div className="text-right">
-                                                <span className={`text-2xl font-bold ${session.overallScore >= 70 ? 'text-green-400' : session.overallScore >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-                                                    {session.overallScore}
-                                                </span>
-                                                <span className="text-zinc-500 text-sm">/100</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </main>
+
+            {/* Session Detail Modal */}
+            {selectedSession && (
+                <div
+                    className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                    onClick={() => setSelectedSession(null)}
+                >
+                    <div
+                        className="bg-surface-dark border border-border-dark rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-4 md:p-6 border-b border-border-dark">
+                            <div>
+                                <h2 className="text-white text-lg md:text-xl font-bold">{selectedSession.presentationTitle || 'Practice Session'}</h2>
+                                <p className="text-zinc-400 text-sm">
+                                    {formatDate(selectedSession.createdAt || selectedSession.startedAt)} •
+                                    {selectedSession.durationSeconds ? ` ${Math.round(selectedSession.durationSeconds / 60)} minutes` : ''}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {selectedSession.overallScore && (
+                                    <div className={`text-2xl md:text-3xl font-bold ${selectedSession.overallScore >= 70 ? 'text-green-400' : selectedSession.overallScore >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                        {selectedSession.overallScore}
+                                        <span className="text-zinc-500 text-sm font-normal">/100</span>
+                                    </div>
+                                )}
+                                <button
+                                    onClick={() => setSelectedSession(null)}
+                                    className="p-2 rounded-lg hover:bg-background-dark transition-colors"
+                                >
+                                    <span className="material-symbols-outlined text-zinc-400">close</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-4 md:p-6 overflow-y-auto max-h-[60vh] space-y-6">
+                            {/* AI Feedback */}
+                            {selectedSession.aiFeedback ? (
+                                <>
+                                    {/* Summary */}
+                                    {selectedSession.aiFeedback.summary && (
+                                        <div>
+                                            <h3 className="text-white font-bold mb-2 flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-primary">psychology</span>
+                                                AI Summary
+                                            </h3>
+                                            <p className="text-zinc-300 text-sm leading-relaxed">{selectedSession.aiFeedback.summary}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Insights */}
+                                    {selectedSession.aiFeedback.naturalInsights?.length > 0 && (
+                                        <div>
+                                            <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-blue-400">lightbulb</span>
+                                                Key Insights
+                                            </h3>
+                                            <div className="space-y-2">
+                                                {selectedSession.aiFeedback.naturalInsights.map((insight, i) => (
+                                                    <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-background-dark/50">
+                                                        <span className="text-blue-400 mt-0.5">•</span>
+                                                        <p className="text-zinc-300 text-sm">{insight}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Positives & Improvements */}
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        {selectedSession.aiFeedback.positives?.length > 0 && (
+                                            <div>
+                                                <h4 className="text-green-400 font-medium mb-2 flex items-center gap-2 text-sm">
+                                                    <span className="material-symbols-outlined text-[18px]">thumb_up</span>
+                                                    Strengths
+                                                </h4>
+                                                <ul className="space-y-1">
+                                                    {selectedSession.aiFeedback.positives.map((item, i) => (
+                                                        <li key={i} className="text-zinc-400 text-sm flex items-start gap-2">
+                                                            <span className="text-green-500">✓</span> {item}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                        {selectedSession.aiFeedback.improvements?.length > 0 && (
+                                            <div>
+                                                <h4 className="text-yellow-400 font-medium mb-2 flex items-center gap-2 text-sm">
+                                                    <span className="material-symbols-outlined text-[18px]">trending_up</span>
+                                                    Areas to Improve
+                                                </h4>
+                                                <ul className="space-y-1">
+                                                    {selectedSession.aiFeedback.improvements.map((item, i) => (
+                                                        <li key={i} className="text-zinc-400 text-sm flex items-start gap-2">
+                                                            <span className="text-yellow-500">→</span> {item}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Goals */}
+                                    {selectedSession.aiFeedback.nextSessionGoals?.length > 0 && (
+                                        <div>
+                                            <h3 className="text-white font-bold mb-2 flex items-center gap-2">
+                                                <span className="material-symbols-outlined text-purple-400">flag</span>
+                                                Next Session Goals
+                                            </h3>
+                                            <div className="flex flex-wrap gap-2">
+                                                {selectedSession.aiFeedback.nextSessionGoals.map((goal, i) => (
+                                                    <span key={i} className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs">
+                                                        {goal}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="text-center py-8">
+                                    <span className="material-symbols-outlined text-4xl text-zinc-700 mb-2">feedback</span>
+                                    <p className="text-zinc-500">No AI feedback available for this session</p>
+                                </div>
+                            )}
+
+                            {/* Session Metrics */}
+                            {selectedSession.metrics && Object.keys(selectedSession.metrics).length > 0 && (
+                                <div>
+                                    <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-cyan-400">analytics</span>
+                                        Session Metrics
+                                    </h3>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        {selectedSession.metrics.eyeContactPercent !== undefined && (
+                                            <div className="bg-background-dark/50 p-3 rounded-lg text-center">
+                                                <p className="text-zinc-500 text-xs">Audience Focus</p>
+                                                <p className="text-white text-lg font-bold">{Math.round(selectedSession.metrics.eyeContactPercent)}%</p>
+                                            </div>
+                                        )}
+                                        {selectedSession.metrics.postureScore !== undefined && (
+                                            <div className="bg-background-dark/50 p-3 rounded-lg text-center">
+                                                <p className="text-zinc-500 text-xs">Posture</p>
+                                                <p className="text-white text-lg font-bold">{Math.round(selectedSession.metrics.postureScore)}%</p>
+                                            </div>
+                                        )}
+                                        {selectedSession.metrics.speechRate !== undefined && (
+                                            <div className="bg-background-dark/50 p-3 rounded-lg text-center">
+                                                <p className="text-zinc-500 text-xs">Speech Rate</p>
+                                                <p className="text-white text-lg font-bold">{selectedSession.metrics.speechRate} WPM</p>
+                                            </div>
+                                        )}
+                                        {selectedSession.metrics.fillerCount !== undefined && (
+                                            <div className="bg-background-dark/50 p-3 rounded-lg text-center">
+                                                <p className="text-zinc-500 text-xs">Filler Words</p>
+                                                <p className="text-white text-lg font-bold">{selectedSession.metrics.fillerCount}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="flex items-center justify-between p-4 border-t border-border-dark">
+                            <button
+                                onClick={() => setSelectedSession(null)}
+                                className="px-4 py-2 text-zinc-400 hover:text-white transition-colors text-sm"
+                            >
+                                Close
+                            </button>
+                            <Link
+                                to="/practice"
+                                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                            >
+                                <span className="material-symbols-outlined text-[18px]">play_arrow</span>
+                                New Practice
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

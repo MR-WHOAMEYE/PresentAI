@@ -86,9 +86,15 @@ class PracticeSession:
             'presentationTitle': doc.get('presentation_title'),
             'startedAt': doc.get('started_at').isoformat() if doc.get('started_at') else None,
             'endedAt': doc.get('ended_at').isoformat() if doc.get('ended_at') else None,
+            'createdAt': doc.get('created_at').isoformat() if doc.get('created_at') else None,
             'durationSeconds': doc.get('duration_seconds'),
             'metrics': doc.get('metrics', {}),
             'aiSummary': doc.get('ai_summary'),
+            'aiFeedback': doc.get('ai_feedback'),
             'overallScore': doc.get('overall_score'),
-            'hasRecording': bool(doc.get('recording_path'))
+            'transcript': doc.get('transcript'),
+            'hasRecording': bool(doc.get('recording_url') or doc.get('recording_path')),
+            'recordingUrl': doc.get('recording_url'),
+            'recordingPlayerUrl': doc.get('recording_player_url'),
+            'recordingThumbnail': doc.get('recording_thumbnail')
         }

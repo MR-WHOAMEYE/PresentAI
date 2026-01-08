@@ -165,8 +165,12 @@ def complete_session(user, session_id):
         update_fields['metrics'] = data['metrics']
     if 'aiSummary' in data:
         update_fields['ai_summary'] = data['aiSummary']
+    if 'aiFeedback' in data:
+        update_fields['ai_feedback'] = data['aiFeedback']
     if 'overallScore' in data:
         update_fields['overall_score'] = data['overallScore']
+    if 'transcript' in data:
+        update_fields['transcript'] = data['transcript']
     
     db.practice_sessions.update_one(
         {'_id': ObjectId(session_id)},
