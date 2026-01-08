@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Sidebar from '../components/Layout/Sidebar'
 import { useAuth } from '../contexts/AuthContext'
@@ -7,8 +7,9 @@ import { useSession } from '../contexts/SessionContext'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function DashboardPage() {
-    const { user, isAuthenticated, loading } = useAuth()
+    const { user, isAuthenticated, loading, hasGoogleDriveAccess, connectGoogleDrive } = useAuth()
     const { sessions, fetchSessions } = useSession()
+    const navigate = useNavigate()
     const [presentations, setPresentations] = useState([])
     const [stats, setStats] = useState({ totalSessions: 0, totalPracticeTime: 0, averageScore: 0 })
 
@@ -105,10 +106,27 @@ export default function DashboardPage() {
                                     <span className="material-symbols-outlined text-xl md:text-3xl">slideshow</span>
                                 </div>
                                 <h3 className="text-base md:text-xl font-bold mb-1 md:mb-2 text-white">Import from Google Slides</h3>
-                                <p className="text-zinc-400 text-sm md:text-base mb-4 md:mb-8 line-clamp-2">Connect your deck to get slide-by-slide feedback on pacing and content.</p>
-                                <Link to="/practice" className="mt-auto text-sm font-bold text-primary group-hover:underline flex items-center gap-1">
-                                    Connect Slides <span className="material-symbols-outlined text-base">arrow_forward</span>
-                                </Link>
+                                <p className="text-zinc-400 text-sm md:text-base mb-4 md:mb-8 line-clamp-2">
+                                    {hasGoogleDriveAccess
+                                        ? 'Your Google account is connected. Import slides for slide-by-slide feedback.'
+                                        : 'Connect your Google account to import slides and get feedback on pacing.'}
+                                </p>
+                                {hasGoogleDriveAccess ? (
+                                    <Link to="/practice" className="mt-auto text-sm font-bold text-primary group-hover:underline flex items-center gap-1">
+                                        Import Slides <span className="material-symbols-outlined text-base">arrow_forward</span>
+                                    </Link>
+                                ) : (
+                                    <button
+                                        onClick={() => isAuthenticated ? connectGoogleDrive() : navigate('/login')}
+                                        className="mt-auto flex items-center gap-2 py-1.5 px-3 bg-[#F4B400] text-gray-900 rounded-lg text-sm font-bold hover:bg-yellow-400 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" viewBox="0 0 24 24">
+                                            <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                        </svg>
+                                        Connect Google
+                                    </button>
+                                )}
                             </div>
                         </div>
 

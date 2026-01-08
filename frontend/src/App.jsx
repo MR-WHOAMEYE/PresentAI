@@ -7,6 +7,7 @@ import PracticePage from './pages/PracticePage'
 import ProgressPage from './pages/ProgressPage'
 import SettingsPage from './pages/SettingsPage'
 import FeedbackPage from './pages/FeedbackPage'
+import AuthPage from './pages/AuthPage'
 
 function App() {
     return (
@@ -15,6 +16,9 @@ function App() {
                 <BrowserRouter>
                     <Routes>
                         <Route path="/" element={<DashboardPage />} />
+                        <Route path="/dashboard" element={<DashboardPage />} />
+                        <Route path="/login" element={<AuthPage />} />
+                        <Route path="/auth" element={<AuthPage />} />
                         <Route path="/practice" element={<PracticePage />} />
                         <Route path="/progress" element={<ProgressPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
