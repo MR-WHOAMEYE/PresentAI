@@ -32,20 +32,26 @@ def init_firebase():
             
             if service_account_key:
                 try:
+                    # Clean up the key string (remove potential surrounding quotes from env file)
+                    clean_key = service_account_key.strip()
+                    if (clean_key.startswith("'") and clean_key.endswith("'")) or \
+                       (clean_key.startswith('"') and clean_key.endswith('"')):
+                        clean_key = clean_key[1:-1]
+                    
                     # Check if it's a JSON string
-                    if service_account_key.strip().startswith('{'):
+                    if clean_key.strip().startswith('{'):
                         import json
-                        cred_dict = json.loads(service_account_key)
+                        cred_dict = json.loads(clean_key)
                         cred = credentials.Certificate(cred_dict)
                         firebase_admin.initialize_app(cred)
                         print("✅ Firebase initialized with service account (JSON string)")
                     # Check if it's a file path
-                    elif os.path.exists(service_account_key):
-                        cred = credentials.Certificate(service_account_key)
+                    elif os.path.exists(clean_key):
+                        cred = credentials.Certificate(clean_key)
                         firebase_admin.initialize_app(cred)
-                        print(f"✅ Firebase initialized with service account file: {service_account_key}")
+                        print(f"✅ Firebase initialized with service account file: {clean_key}")
                     else:
-                        print(f"⚠️ Service account key provided/found but not valid file or JSON: {service_account_key[:20]}...")
+                        print(f"⚠️ Service account key provided/found but not valid file or JSON: {clean_key[:20]}...")
                 except Exception as sa_err:
                     print(f"⚠️ Failed to load service account key: {sa_err}")
                     # Fallthrough to ADC
