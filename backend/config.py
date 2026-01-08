@@ -55,6 +55,9 @@ class Config:
     # Vercel Blob
     BLOB_READ_WRITE_TOKEN = os.getenv('BLOB_READ_WRITE_TOKEN')
 
+    # Firebase Service Account
+    FIREBASE_SERVICE_ACCOUNT_KEY = os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY')
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""

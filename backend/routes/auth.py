@@ -27,17 +27,41 @@ def init_firebase():
     try:
         # Try to use service account from environment or default credentials
         if not firebase_admin._apps:
-            # Check for explicit project ID
-            project_id = os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('FIREBASE_PROJECT_ID')
-            options = {'projectId': project_id} if project_id else None
+            # Check for service account key (file path or JSON string)
+            service_account_key = Config.FIREBASE_SERVICE_ACCOUNT_KEY or os.getenv('FIREBASE_SERVICE_ACCOUNT_KEY')
             
-            # Use default credentials (Application Default Credentials)
-            firebase_admin.initialize_app(options=options)
+            if service_account_key:
+                try:
+                    # Check if it's a JSON string
+                    if service_account_key.strip().startswith('{'):
+                        import json
+                        cred_dict = json.loads(service_account_key)
+                        cred = credentials.Certificate(cred_dict)
+                        firebase_admin.initialize_app(cred)
+                        print("✅ Firebase initialized with service account (JSON string)")
+                    # Check if it's a file path
+                    elif os.path.exists(service_account_key):
+                        cred = credentials.Certificate(service_account_key)
+                        firebase_admin.initialize_app(cred)
+                        print(f"✅ Firebase initialized with service account file: {service_account_key}")
+                    else:
+                        print(f"⚠️ Service account key provided/found but not valid file or JSON: {service_account_key[:20]}...")
+                except Exception as sa_err:
+                    print(f"⚠️ Failed to load service account key: {sa_err}")
+                    # Fallthrough to ADC
             
-            if project_id:
-                print(f"✅ Firebase initialized with project ID: {project_id}")
-            else:
-                print("⚠️ Firebase initialized without explicit project ID (using ADC)")
+            if not firebase_admin._apps:
+                # Check for explicit project ID
+                project_id = os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('FIREBASE_PROJECT_ID')
+                options = {'projectId': project_id} if project_id else None
+                
+                # Use default credentials (Application Default Credentials)
+                firebase_admin.initialize_app(options=options)
+                
+                if project_id:
+                    print(f"✅ Firebase initialized with project ID (ADC): {project_id}")
+                else:
+                    print("⚠️ Firebase initialized without explicit project ID (using ADC)")
                 
         _firebase_initialized = True
     except Exception as e:
