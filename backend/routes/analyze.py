@@ -63,6 +63,83 @@ def analyze_realtime(user):
         return jsonify({'error': 'Failed to generate feedback'}), 500
 
 
+@analyze_bp.route('/session-summary', methods=['POST'])
+@require_auth
+def analyze_session_summary(user):
+    """Generate comprehensive AI session summary for FeedbackPage"""
+    data = request.get_json() or {}
+    
+    transcript = data.get('transcript', '')
+    metrics = data.get('metrics', {})
+    duration_seconds = data.get('durationSeconds', 0)
+    
+    # Transform metrics to the format expected by gemini_service
+    session_metrics = {
+        'avgPostureScore': metrics.get('postureScore', 0),
+        'avgEyeContact': metrics.get('eyeContactPercent', 0),
+        'avgSpeechRate': metrics.get('speechRate', 0),
+        'totalFillerWords': metrics.get('fillerCount', 0),
+        'durationMinutes': round(duration_seconds / 60, 1),
+        'gestureTypes': metrics.get('gestureType', 'N/A'),
+        'postureIssues': metrics.get('postureIssues', [])
+    }
+    
+    try:
+        # Generate AI summary
+        summary_data = gemini_service.generate_session_summary(
+            session_metrics=session_metrics,
+            transcript=transcript
+        )
+        
+        # Transform response to match FeedbackPage expected format
+        result = {
+            'overallScore': summary_data.get('overallScore', 0),
+            'grade': summary_data.get('grade', 'B'),
+            'summary': summary_data.get('headline', 'Good practice session!'),
+            'naturalInsights': summary_data.get('naturalInsights', []),
+            
+            # Map strengths to positives array for FeedbackPage
+            'positives': [
+                s.get('detail', s.get('area', 'Great effort!')) 
+                for s in summary_data.get('strengths', [])
+            ],
+            
+            # Map areasForImprovement to improvements array for FeedbackPage
+            'improvements': [
+                f"{area.get('area', '')}: {area.get('detail', '')}" 
+                for area in summary_data.get('areasForImprovement', [])
+            ],
+            
+            'nextSessionGoals': summary_data.get('nextSessionGoals', []),
+            'motivationalMessage': summary_data.get('motivationalMessage', 'Keep practicing!')
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"Error generating session summary: {e}")
+        
+        # Compute fallback score
+        posture = metrics.get('postureScore', 0)
+        eye = metrics.get('eyeContactPercent', 0)
+        fallback_score = round((posture * 0.3 + eye * 0.4 + 50 * 0.3))
+        
+        return jsonify({
+            'overallScore': fallback_score,
+            'grade': 'B' if fallback_score >= 70 else 'C',
+            'summary': 'Good practice session with room for improvement.',
+            'naturalInsights': [
+                f"You maintained {eye}% eye contact with the camera.",
+                f"Your posture score was {posture}%."
+            ],
+            'positives': ['Great effort in practicing!', 'Keep up the momentum!'],
+            'improvements': ['Focus on maintaining eye contact with your audience.'],
+            'nextSessionGoals': ['Improve eye contact', 'Practice more regularly'],
+            'motivationalMessage': 'Every practice session makes you better!'
+        })
+
+
+
 @analyze_bp.route('/realtime-voice', methods=['POST'])
 @require_auth
 def analyze_realtime_voice(user):

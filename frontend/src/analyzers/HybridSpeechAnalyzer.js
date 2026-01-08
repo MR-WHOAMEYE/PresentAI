@@ -1,15 +1,27 @@
 /**
- * Hybrid Speech Analyzer - Combines backend faster-whisper and local Whisper WASM
- * Automatically switches between backend and local transcription based on connection quality
+ * Hybrid Speech Analyzer - Multi-platform speech to text
+ * Supports: Capacitor Native (mobile), Backend faster-whisper, Web Speech API
+ * Automatically selects best available method based on platform and connection
  */
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+// Check if running in Capacitor
+const isCapacitor = () => {
+    return window.Capacitor !== undefined;
+};
+
+// Check if running on mobile
+const isMobile = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        (window.Capacitor?.isNativePlatform?.() === true);
+};
 
 export class HybridSpeechAnalyzer {
     constructor(options = {}) {
         this.isRunning = false;
         this.onResultCallback = null;
-        this.mode = 'backend'; // 'backend' | 'local' | 'webspeech'
+        this.mode = 'detecting'; // 'capacitor' | 'backend' | 'webspeech' | 'detecting'
         this.onModeChangeCallback = null;
 
         // Transcription state
@@ -46,25 +58,47 @@ export class HybridSpeechAnalyzer {
 
         // Web Speech API fallback
         this.webSpeechRecognition = null;
+
+        // Capacitor Speech Recognition
+        this.capacitorSpeechRecognition = null;
+        this.capacitorAvailable = false;
+
+        // Platform info
+        this.isMobileDevice = isMobile();
+        this.isCapacitorApp = isCapacitor();
     }
 
     async start() {
         if (this.isRunning) return true;
 
         try {
-            // Check backend availability first
+            // Try methods in order of preference based on platform
+            if (this.isCapacitorApp) {
+                // Mobile app: Try Capacitor native first
+                const capacitorStarted = await this.tryCapacitorSpeech();
+                if (capacitorStarted) {
+                    this.mode = 'capacitor';
+                    this.reset();
+                    this.startTime = Date.now();
+                    this.isRunning = true;
+                    console.log('🎤 Started with Capacitor native speech recognition');
+                    this.notifyModeChange();
+                    return true;
+                }
+            }
+
+            // Check backend availability
             await this.checkBackendHealth();
 
-            // Get microphone stream
-            this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
             if (this.backendAvailable && this.backendLatency < 500) {
-                // Use backend transcription
+                // Get microphone stream for backend mode
+                this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 this.mode = 'backend';
                 this.startBackendTranscription();
             } else if (this.isWebSpeechSupported()) {
                 // Fall back to Web Speech API
                 this.mode = 'webspeech';
+                // Web Speech doesn't need getUserMedia on most browsers
                 this.startWebSpeechTranscription();
             } else {
                 console.warn('No transcription method available');
@@ -75,12 +109,109 @@ export class HybridSpeechAnalyzer {
             this.startTime = Date.now();
             this.isRunning = true;
 
-            console.log(`🎤 Hybrid STT started in ${this.mode} mode`);
+            console.log(`🎤 Hybrid STT started in ${this.mode} mode (mobile: ${this.isMobileDevice})`);
             this.notifyModeChange();
 
             return true;
         } catch (error) {
             console.error('Failed to start hybrid speech analyzer:', error);
+            // Try Web Speech as last resort
+            if (this.isWebSpeechSupported()) {
+                try {
+                    this.mode = 'webspeech';
+                    this.startWebSpeechTranscription();
+                    this.reset();
+                    this.startTime = Date.now();
+                    this.isRunning = true;
+                    console.log('🎤 Fallback to Web Speech API');
+                    this.notifyModeChange();
+                    return true;
+                } catch (e) {
+                    console.error('Web Speech fallback failed:', e);
+                }
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Try to start Capacitor native speech recognition
+     */
+    async tryCapacitorSpeech() {
+        // Only attempt if we're in a Capacitor environment
+        if (!window.Capacitor?.isNativePlatform?.()) {
+            console.log('Not in Capacitor native environment, skipping native speech');
+            return false;
+        }
+
+        try {
+            // Check if the plugin is registered in Capacitor
+            const plugins = window.Capacitor?.Plugins;
+            if (!plugins?.SpeechRecognition) {
+                console.log('Capacitor SpeechRecognition plugin not installed');
+                return false;
+            }
+
+            const SpeechRecognition = plugins.SpeechRecognition;
+
+            // Check if available
+            const available = await SpeechRecognition.available();
+            if (!available.available) {
+                console.log('Capacitor Speech Recognition not available on this device');
+                return false;
+            }
+
+            // Request permission
+            const permission = await SpeechRecognition.requestPermissions();
+            if (permission.speechRecognition !== 'granted') {
+                console.log('Speech recognition permission denied');
+                return false;
+            }
+
+            this.capacitorSpeechRecognition = SpeechRecognition;
+            this.capacitorAvailable = true;
+
+            // Start listening
+            await SpeechRecognition.start({
+                language: this.language,
+                maxResults: 5,
+                prompt: 'Speak now...',
+                partialResults: true,
+                popup: false
+            });
+
+            // Add listener for results
+            SpeechRecognition.addListener('partialResults', (data) => {
+                if (data.matches && data.matches.length > 0) {
+                    this.interimTranscript = data.matches[0];
+                    this.sendUpdate(this.interimTranscript);
+                }
+            });
+
+            SpeechRecognition.addListener('listeningState', (state) => {
+                if (state.status === 'stopped' && this.isRunning) {
+                    // Process final result and restart
+                    if (this.interimTranscript) {
+                        this.processTranscription(this.interimTranscript);
+                        this.interimTranscript = '';
+                    }
+                    // Restart listening
+                    setTimeout(() => {
+                        if (this.isRunning && this.capacitorSpeechRecognition) {
+                            this.capacitorSpeechRecognition.start({
+                                language: this.language,
+                                maxResults: 5,
+                                partialResults: true,
+                                popup: false
+                            }).catch(e => console.log('Restart failed:', e));
+                        }
+                    }, 100);
+                }
+            });
+
+            return true;
+        } catch (error) {
+            console.log('Capacitor Speech Recognition not available:', error.message);
             return false;
         }
     }
@@ -304,6 +435,15 @@ export class HybridSpeechAnalyzer {
     stop() {
         this.isRunning = false;
 
+        // Stop Capacitor speech recognition
+        if (this.capacitorSpeechRecognition) {
+            try {
+                this.capacitorSpeechRecognition.stop();
+                this.capacitorSpeechRecognition.removeAllListeners();
+            } catch (e) { }
+            this.capacitorSpeechRecognition = null;
+        }
+
         this.stopBackendTranscription();
 
         if (this.webSpeechRecognition) {
@@ -368,7 +508,24 @@ export class HybridSpeechAnalyzer {
     }
 
     static isSupported() {
-        return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        // Check for any supported method
+        const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+        const hasWebSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+        const hasCapacitor = isCapacitor();
+
+        return hasGetUserMedia || hasWebSpeech || hasCapacitor;
+    }
+
+    /**
+     * Get platform info for UI display
+     */
+    static getPlatformInfo() {
+        return {
+            isMobile: isMobile(),
+            isCapacitor: isCapacitor(),
+            hasWebSpeech: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+            hasMicrophone: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+        };
     }
 }
 

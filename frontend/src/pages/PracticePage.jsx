@@ -57,6 +57,8 @@ export default function PracticePage() {
 
     // Mobile panel state
     const [mobilePanel, setMobilePanel] = useState('main') // 'main' | 'slides' | 'metrics'
+    const [showMobileMetrics, setShowMobileMetrics] = useState(false)
+    const [showMobileTranscript, setShowMobileTranscript] = useState(false)
 
     useEffect(() => {
         metricsRef.current = metrics
@@ -200,7 +202,13 @@ export default function PracticePage() {
             if (faceAnalyzerRef.current) {
                 const faceResult = await faceAnalyzerRef.current.analyze()
                 if (faceResult) {
-                    updateMetrics({ eyeContactPercent: faceResult.eyeContactPercent || 0 })
+                    updateMetrics({
+                        eyeContactPercent: faceResult.eyeContactPercent || 0,
+                        headPose: faceResult.headPose || { yaw: 0, pitch: 0, roll: 0 },
+                        engagement: faceResult.engagement || { level: 'unknown', reason: 'Analyzing...', score: 0 },
+                        faceDetected: faceResult.faceDetected ?? false,
+                        isCalibrated: faceResult.isCalibrated ?? false
+                    })
                 }
             }
 
@@ -343,7 +351,7 @@ export default function PracticePage() {
 
     return (
         <div className="flex h-screen w-full overflow-hidden bg-background-dark font-display text-white">
-            <Sidebar collapsed />
+            <Sidebar collapsed hideMobileNav />
 
             {/* Left Panel - Slide Thumbnails (Desktop only) */}
             <aside className="hidden md:flex w-28 bg-surface-dark border-r border-border-dark flex-col shrink-0">
@@ -482,26 +490,51 @@ export default function PracticePage() {
                     </div>
 
                     {/* Real-time Transcription */}
-                    <div className="h-32 bg-surface-dark rounded-xl border border-border-dark p-4 overflow-hidden">
+                    <div className={`bg-surface-dark rounded-xl border border-border-dark p-4 overflow-hidden transition-all duration-300 ${showMobileTranscript ? 'fixed inset-4 z-50 h-auto' : 'h-32 md:h-32'
+                        }`}>
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-white text-sm font-bold uppercase tracking-wider">
                                 Real Time Transcription
                             </h3>
-                            {isPracticing && (
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full animate-pulse ${sttMode === 'backend' ? 'bg-blue-500' : 'bg-green-500'}`}></div>
-                                    <span className={`text-xs font-medium ${sttMode === 'backend' ? 'text-blue-400' : 'text-green-400'}`}>
-                                        {sttMode === 'backend' ? '⚡ Fast Mode' : sttMode === 'webspeech' ? '🌐 Web Speech' : 'Detecting...'}
+                            <div className="flex items-center gap-2">
+                                {isPracticing && (
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full animate-pulse ${sttMode === 'capacitor' ? 'bg-purple-500' :
+                                            sttMode === 'backend' ? 'bg-blue-500' : 'bg-green-500'
+                                            }`}></div>
+                                        <span className={`text-xs font-medium hidden sm:inline ${sttMode === 'capacitor' ? 'text-purple-400' :
+                                            sttMode === 'backend' ? 'text-blue-400' : 'text-green-400'
+                                            }`}>
+                                            {sttMode === 'capacitor' ? '📱 Native' :
+                                                sttMode === 'backend' ? '⚡ Fast Mode' :
+                                                    sttMode === 'webspeech' ? '🌐 Web Speech' : 'Detecting...'}
+                                        </span>
+                                    </div>
+                                )}
+                                {/* Mobile expand button */}
+                                <button
+                                    onClick={() => setShowMobileTranscript(!showMobileTranscript)}
+                                    className="md:hidden p-1 text-zinc-400 hover:text-white"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">
+                                        {showMobileTranscript ? 'close_fullscreen' : 'open_in_full'}
                                     </span>
-                                </div>
-                            )}
+                                </button>
+                            </div>
                         </div>
-                        <div className="h-[calc(100%-28px)] overflow-y-auto" id="transcript-container">
+                        <div className={`overflow-y-auto ${showMobileTranscript ? 'h-[calc(100%-40px)]' : 'h-[calc(100%-28px)]'}`} id="transcript-container">
                             <p className={`text-sm leading-relaxed ${transcript ? 'text-white' : 'text-zinc-500'}`}>
                                 {transcript || (isPracticing ? 'Listening... Start speaking!' : 'Your speech will appear here in real-time as you speak...')}
                             </p>
                         </div>
                     </div>
+                    {/* Mobile transcript overlay backdrop */}
+                    {showMobileTranscript && (
+                        <div
+                            className="fixed inset-0 bg-black/60 z-40 md:hidden"
+                            onClick={() => setShowMobileTranscript(false)}
+                        />
+                    )}
                 </div>
             </main>
 
@@ -511,7 +544,7 @@ export default function PracticePage() {
                     <h3 className="text-white font-bold text-sm uppercase tracking-wider">Real-Time Metrics</h3>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {/* Overall Score */}
                     <div className="bg-surface-highlight rounded-xl p-4 border border-border-dark flex items-center gap-4">
                         <CircularProgress value={overallScore} size={56} strokeWidth={3} />
@@ -521,14 +554,104 @@ export default function PracticePage() {
                         </div>
                     </div>
 
-                    {/* Eye Contact */}
+                    {/* Engagement Status (NEW) */}
+                    <div className={`rounded-xl p-3 border transition-all duration-300 ${metrics.engagement?.level === 'good' ? 'bg-green-500/10 border-green-500/30' :
+                        metrics.engagement?.level === 'bad' ? 'bg-red-500/10 border-red-500/30' :
+                            'bg-surface-highlight border-border-dark'
+                        }`}>
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2.5 h-2.5 rounded-full ${metrics.engagement?.level === 'good' ? 'bg-green-500 animate-pulse' :
+                                    metrics.engagement?.level === 'bad' ? 'bg-red-500 animate-pulse' :
+                                        metrics.faceDetected === false ? 'bg-zinc-600' : 'bg-yellow-500'
+                                    }`}></div>
+                                <span className="text-white text-sm font-medium">Engagement</span>
+                            </div>
+                            <span className={`text-sm font-bold ${metrics.engagement?.level === 'good' ? 'text-green-400' :
+                                metrics.engagement?.level === 'bad' ? 'text-red-400' :
+                                    'text-yellow-400'
+                                }`}>
+                                {metrics.engagement?.score || 0}%
+                            </span>
+                        </div>
+                        <p className={`text-xs ${metrics.engagement?.level === 'good' ? 'text-green-300' :
+                            metrics.engagement?.level === 'bad' ? 'text-red-300' :
+                                'text-zinc-400'
+                            }`}>
+                            {metrics.engagement?.reason || (metrics.faceDetected === false ? 'No face detected' : 'Analyzing...')}
+                        </p>
+                    </div>
+
+                    {/* Head Pose Indicator (NEW) */}
                     <div className="bg-surface-highlight rounded-xl p-3 border border-border-dark">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-cyan-400 text-[20px]">3d_rotation</span>
+                                <span className="text-white text-sm font-medium">Head Pose</span>
+                            </div>
+                            {metrics.isCalibrated && (
+                                <span className="text-xs text-green-400/70">Calibrated</span>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="bg-zinc-900/50 rounded-lg p-2">
+                                <p className="text-zinc-500 text-[10px] uppercase">Yaw</p>
+                                <p className={`font-mono text-sm font-bold ${Math.abs(metrics.headPose?.yaw || 0) >= 20 ? 'text-green-400' :
+                                    Math.abs(metrics.headPose?.yaw || 0) < 12 ? 'text-red-400' : 'text-yellow-400'
+                                    }`}>
+                                    {metrics.headPose?.yaw || 0}°
+                                </p>
+                            </div>
+                            <div className="bg-zinc-900/50 rounded-lg p-2">
+                                <p className="text-zinc-500 text-[10px] uppercase">Pitch</p>
+                                <p className={`font-mono text-sm font-bold ${(metrics.headPose?.pitch || 0) < -12 ? 'text-red-400' : 'text-white'
+                                    }`}>
+                                    {metrics.headPose?.pitch || 0}°
+                                </p>
+                            </div>
+                            <div className="bg-zinc-900/50 rounded-lg p-2">
+                                <p className="text-zinc-500 text-[10px] uppercase">Roll</p>
+                                <p className="text-white font-mono text-sm font-bold">
+                                    {metrics.headPose?.roll || 0}°
+                                </p>
+                            </div>
+                        </div>
+                        {/* Visual Yaw Indicator */}
+                        <div className="mt-2 relative h-2 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="absolute inset-y-0 left-1/2 w-0.5 bg-zinc-600"></div>
+                            <div
+                                className={`absolute top-0 h-full w-3 rounded-full transition-all duration-150 ${Math.abs(metrics.headPose?.yaw || 0) >= 20 ? 'bg-green-500' :
+                                    Math.abs(metrics.headPose?.yaw || 0) < 12 ? 'bg-red-500' : 'bg-yellow-500'
+                                    }`}
+                                style={{
+                                    left: `calc(50% + ${Math.max(-45, Math.min(45, (metrics.headPose?.yaw || 0)))}% - 6px)`
+                                }}
+                            ></div>
+                        </div>
+                        <div className="flex justify-between text-[9px] text-zinc-600 mt-1">
+                            <span>← Slides</span>
+                            <span>Audience →</span>
+                        </div>
+                    </div>
+
+                    {/* Eye Contact (updated) */}
+                    <div className="bg-surface-highlight rounded-xl p-3 border border-border-dark">
+                        <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                                 <span className="material-symbols-outlined text-blue-400 text-[20px]">visibility</span>
-                                <span className="text-white text-sm font-medium">Eye Contact</span>
+                                <span className="text-white text-sm font-medium">Audience Focus</span>
                             </div>
-                            <span className="text-white font-bold">{Math.round(metrics.eyeContactPercent || 0)}%</span>
+                            <span className={`font-bold ${(metrics.eyeContactPercent || 0) >= 70 ? 'text-green-400' :
+                                (metrics.eyeContactPercent || 0) >= 40 ? 'text-yellow-400' : 'text-red-400'
+                                }`}>{Math.round(metrics.eyeContactPercent || 0)}%</span>
+                        </div>
+                        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full transition-all duration-300 ${(metrics.eyeContactPercent || 0) >= 70 ? 'bg-green-500' :
+                                    (metrics.eyeContactPercent || 0) >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`}
+                                style={{ width: `${metrics.eyeContactPercent || 0}%` }}
+                            />
                         </div>
                     </div>
 
@@ -553,7 +676,9 @@ export default function PracticePage() {
                                 <span className="material-symbols-outlined text-purple-400 text-[20px]">graphic_eq</span>
                                 <span className="text-white text-sm font-medium">Speech Pace</span>
                             </div>
-                            <span className="text-white font-bold">{metrics.speechRate || 0} WPM</span>
+                            <span className={`font-bold ${(metrics.speechRate || 0) >= 120 && (metrics.speechRate || 0) <= 150 ? 'text-green-400' :
+                                (metrics.speechRate || 0) < 100 || (metrics.speechRate || 0) > 180 ? 'text-red-400' : 'text-yellow-400'
+                                }`}>{metrics.speechRate || 0} WPM</span>
                         </div>
                         <p className="text-xs text-zinc-500 mt-1">Optimal: 120-150 WPM</p>
                     </div>
@@ -577,7 +702,7 @@ export default function PracticePage() {
                             <span className="material-symbols-outlined text-cyan-400 text-[20px]">gesture</span>
                             <span className="text-white text-sm font-medium">Posture Notes</span>
                         </div>
-                        <p className="text-white font-bold">{metrics.gestureType || 'Analyzing...'}</p>
+                        <p className="text-white font-bold text-sm">{metrics.gestureType || 'Analyzing...'}</p>
                     </div>
                 </div>
 
@@ -692,25 +817,90 @@ export default function PracticePage() {
             {/* Mobile Floating Metrics Button */}
             {isPracticing && (
                 <div className="lg:hidden fixed bottom-20 right-4 z-40 flex flex-col gap-2">
-                    {/* Quick metrics display */}
-                    <div className="bg-surface-dark/90 backdrop-blur-md rounded-xl border border-border-dark p-3 shadow-lg">
-                        <div className="flex items-center gap-3">
-                            <CircularProgress value={overallScore} size={40} strokeWidth={3} />
-                            <div className="text-xs">
-                                <p className="text-zinc-400">Score</p>
-                                <p className="text-white font-bold">{overallLabel}</p>
+                    {/* Expandable metrics card */}
+                    <div
+                        className="bg-surface-dark/95 backdrop-blur-md rounded-2xl border border-border-dark shadow-xl overflow-hidden"
+                        onClick={() => setShowMobileMetrics(!showMobileMetrics)}
+                    >
+                        {/* Compact view */}
+                        <div className="p-3">
+                            <div className="flex items-center gap-3">
+                                <CircularProgress value={overallScore} size={44} strokeWidth={3} />
+                                <div className="text-xs">
+                                    <p className="text-zinc-400">Score</p>
+                                    <p className="text-white font-bold text-sm">{overallLabel}</p>
+                                </div>
+                                <span className="material-symbols-outlined text-zinc-500 text-[16px] ml-auto">
+                                    {showMobileMetrics ? 'expand_less' : 'expand_more'}
+                                </span>
+                            </div>
+
+                            {/* Compact metrics row */}
+                            <div className="grid grid-cols-3 gap-2 mt-3 text-xs">
+                                <div className="flex flex-col items-center p-1.5 bg-zinc-900/50 rounded-lg">
+                                    <div className={`w-2 h-2 rounded-full mb-1 ${metrics.engagement?.level === 'good' ? 'bg-green-500' :
+                                        metrics.engagement?.level === 'bad' ? 'bg-red-500' : 'bg-yellow-500'
+                                        }`}></div>
+                                    <span className="text-white font-medium">{Math.round(metrics.eyeContactPercent || 0)}%</span>
+                                    <span className="text-zinc-500 text-[9px]">Focus</span>
+                                </div>
+                                <div className="flex flex-col items-center p-1.5 bg-zinc-900/50 rounded-lg">
+                                    <span className="material-symbols-outlined text-purple-400 text-[14px] mb-1">graphic_eq</span>
+                                    <span className="text-white font-medium">{metrics.speechRate || 0}</span>
+                                    <span className="text-zinc-500 text-[9px]">WPM</span>
+                                </div>
+                                <div className="flex flex-col items-center p-1.5 bg-zinc-900/50 rounded-lg">
+                                    <span className="material-symbols-outlined text-orange-400 text-[14px] mb-1">record_voice_over</span>
+                                    <span className={`font-medium ${(metrics.fillerCount || 0) > 5 ? 'text-orange-400' : 'text-white'}`}>
+                                        {metrics.fillerCount || 0}
+                                    </span>
+                                    <span className="text-zinc-500 text-[9px]">Fillers</span>
+                                </div>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-                            <div className="flex items-center gap-1">
-                                <span className="material-symbols-outlined text-blue-400 text-[14px]">visibility</span>
-                                <span className="text-white">{Math.round(metrics.eyeContactPercent || 0)}%</span>
+
+                        {/* Expanded view */}
+                        {showMobileMetrics && (
+                            <div className="border-t border-border-dark p-3 space-y-3">
+                                {/* Engagement reason */}
+                                <div className={`p-2 rounded-lg text-xs ${metrics.engagement?.level === 'good' ? 'bg-green-500/10 text-green-400' :
+                                    metrics.engagement?.level === 'bad' ? 'bg-red-500/10 text-red-400' : 'bg-zinc-800 text-zinc-400'
+                                    }`}>
+                                    <span className="material-symbols-outlined text-[14px] mr-1 align-middle">info</span>
+                                    {metrics.engagement?.reason || 'Analyzing...'}
+                                </div>
+
+                                {/* Head pose mini display */}
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-zinc-400">Head Position</span>
+                                    <div className="flex gap-2">
+                                        <span className={`font-mono ${Math.abs(metrics.headPose?.yaw || 0) >= 20 ? 'text-green-400' :
+                                            Math.abs(metrics.headPose?.yaw || 0) < 12 ? 'text-red-400' : 'text-yellow-400'
+                                            }`}>
+                                            Y:{metrics.headPose?.yaw || 0}°
+                                        </span>
+                                        <span className="text-zinc-400">P:{metrics.headPose?.pitch || 0}°</span>
+                                    </div>
+                                </div>
+
+                                {/* Posture */}
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-zinc-400">Posture</span>
+                                    <span className="text-green-400 font-medium">{Math.round(metrics.postureScore || 0)}%</span>
+                                </div>
+
+                                {/* STT Mode */}
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-zinc-400">Speech Mode</span>
+                                    <span className={`font-medium ${sttMode === 'capacitor' ? 'text-purple-400' :
+                                        sttMode === 'backend' ? 'text-blue-400' : 'text-green-400'
+                                        }`}>
+                                        {sttMode === 'capacitor' ? '📱 Native' :
+                                            sttMode === 'backend' ? '⚡ Fast' : '🌐 Web'}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                                <span className="material-symbols-outlined text-purple-400 text-[14px]">graphic_eq</span>
-                                <span className="text-white">{metrics.speechRate || 0}</span>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -720,13 +910,55 @@ export default function PracticePage() {
                 <div className="md:hidden fixed bottom-20 left-4 z-40">
                     <button
                         onClick={() => setShowSlideModal(true)}
-                        className="bg-surface-dark/90 backdrop-blur-md rounded-xl border border-border-dark px-3 py-2 shadow-lg flex items-center gap-2"
+                        className="bg-surface-dark/95 backdrop-blur-md rounded-2xl border border-border-dark px-4 py-2.5 shadow-xl flex items-center gap-2 active:scale-95 transition-transform"
                     >
-                        <span className="material-symbols-outlined text-primary text-[18px]">slideshow</span>
-                        <span className="text-white text-sm font-medium">{currentSlideIndex + 1}/{presentation.slides?.length || 0}</span>
+                        <span className="material-symbols-outlined text-primary text-[20px]">slideshow</span>
+                        <span className="text-white text-sm font-bold">{currentSlideIndex + 1}/{presentation.slides?.length || 0}</span>
                     </button>
                 </div>
             )}
+
+            {/* Mobile bottom navigation bar */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-dark/95 backdrop-blur-md border-t border-border-dark flex items-center justify-around px-4 z-30 safe-area-bottom">
+                <Link to="/" className="flex flex-col items-center gap-1 text-zinc-400">
+                    <span className="material-symbols-outlined text-[22px]">home</span>
+                    <span className="text-[10px]">Home</span>
+                </Link>
+                <button
+                    onClick={() => setShowSlideModal(true)}
+                    className="flex flex-col items-center gap-1 text-zinc-400"
+                >
+                    <span className="material-symbols-outlined text-[22px]">slideshow</span>
+                    <span className="text-[10px]">Slides</span>
+                </button>
+                {!isPracticing ? (
+                    <button
+                        onClick={startPractice}
+                        disabled={loading}
+                        className="flex flex-col items-center gap-1 -mt-6 bg-primary rounded-full p-4 text-white shadow-lg shadow-primary/30 active:scale-95 transition-transform"
+                    >
+                        <span className="material-symbols-outlined text-[28px]">play_arrow</span>
+                    </button>
+                ) : (
+                    <button
+                        onClick={endPractice}
+                        className="flex flex-col items-center gap-1 -mt-6 bg-red-500 rounded-full p-4 text-white shadow-lg shadow-red-500/30 active:scale-95 transition-transform"
+                    >
+                        <span className="material-symbols-outlined text-[28px]">stop</span>
+                    </button>
+                )}
+                <button
+                    onClick={() => setShowMobileTranscript(true)}
+                    className="flex flex-col items-center gap-1 text-zinc-400"
+                >
+                    <span className="material-symbols-outlined text-[22px]">subtitles</span>
+                    <span className="text-[10px]">Transcript</span>
+                </button>
+                <Link to="/feedback" className="flex flex-col items-center gap-1 text-zinc-400">
+                    <span className="material-symbols-outlined text-[22px]">analytics</span>
+                    <span className="text-[10px]">Results</span>
+                </Link>
+            </div>
         </div>
     )
 }

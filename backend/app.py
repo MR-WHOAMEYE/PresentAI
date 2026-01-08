@@ -5,13 +5,15 @@ AI-powered presentation coaching assistant
 import os
 from flask import Flask, jsonify
 from flask_cors import CORS
+from flask_socketio import SocketIO
 from pymongo import MongoClient
 import certifi
 from config import config
 
-# Global mongo client
+# Global instances
 mongo_client = None
 db = None
+socketio = None
 
 
 def get_db():
@@ -69,12 +71,14 @@ def create_app(config_name='default'):
     from routes.sessions import sessions_bp
     from routes.analyze import analyze_bp
     from routes.tts import tts_bp
+    from routes.stt import stt_bp, register_socketio_handlers
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(presentations_bp)
     app.register_blueprint(sessions_bp)
     app.register_blueprint(analyze_bp)
     app.register_blueprint(tts_bp)
+    app.register_blueprint(stt_bp)
     
     # Health check endpoint
     @app.route('/health')
@@ -101,6 +105,41 @@ def create_app(config_name='default'):
     return app
 
 
+def create_socketio(app):
+    """Create and configure SocketIO instance"""
+    global socketio
+    
+    # Get allowed origins from app config
+    frontend_url = app.config.get('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+    allowed_origins = [
+        frontend_url,
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "https://presentai-frontend.vercel.app",
+        "https://presentai-frontend-tharankeswarans-projects.vercel.app",
+    ]
+    
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins=allowed_origins,
+        async_mode='threading',
+        ping_timeout=60,
+        ping_interval=25
+    )
+    
+    # Register STT socket handlers
+    from routes.stt import register_socketio_handlers
+    register_socketio_handlers(socketio)
+    
+    return socketio
+
+
 if __name__ == '__main__':
     app = create_app(os.getenv('FLASK_ENV', 'development'))
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    socketio = create_socketio(app)
+    print("🚀 Starting server with WebSocket support...")
+    # Note: use_reloader=False fixes Windows socket error with Flask-SocketIO
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False, allow_unsafe_werkzeug=True)
+

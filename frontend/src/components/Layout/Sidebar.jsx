@@ -15,7 +15,7 @@ const navItems = [
     { path: '/settings', icon: 'settings', label: 'Settings' },
 ]
 
-export default function Sidebar({ collapsed = false }) {
+export default function Sidebar({ collapsed = false, hideMobileNav = false }) {
     const location = useLocation()
     const { user, isAuthenticated, login, logout } = useAuth()
     const [mobileOpen, setMobileOpen] = useState(false)
@@ -128,36 +128,38 @@ export default function Sidebar({ collapsed = false }) {
             </aside>
 
             {/* Mobile Bottom Navigation */}
-            <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-dark border-t border-border-dark safe-area-bottom">
-                <div className="flex items-center justify-around h-16">
-                    {navItems.map(item => {
-                        const isActive = location.pathname === item.path
-                        return (
-                            <Link
-                                key={item.path}
-                                to={item.path}
-                                className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${isActive ? 'text-primary' : 'text-zinc-500'
-                                    }`}
-                            >
-                                <span
-                                    className="material-symbols-outlined text-[22px]"
-                                    style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
+            {!hideMobileNav && (
+                <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-dark border-t border-border-dark safe-area-bottom">
+                    <div className="flex items-center justify-around h-16">
+                        {navItems.map(item => {
+                            const isActive = location.pathname === item.path
+                            return (
+                                <Link
+                                    key={item.path}
+                                    to={item.path}
+                                    className={`flex flex-col items-center justify-center flex-1 h-full gap-1 transition-colors ${isActive ? 'text-primary' : 'text-zinc-500'
+                                        }`}
                                 >
-                                    {item.icon}
-                                </span>
-                                <span className="text-[10px] font-medium">{item.label}</span>
-                            </Link>
-                        )
-                    })}
-                    <button
-                        onClick={() => setMobileOpen(true)}
-                        className="flex flex-col items-center justify-center flex-1 h-full gap-1 text-zinc-500"
-                    >
-                        <span className="material-symbols-outlined text-[22px]">menu</span>
-                        <span className="text-[10px] font-medium">More</span>
-                    </button>
-                </div>
-            </nav>
+                                    <span
+                                        className="material-symbols-outlined text-[22px]"
+                                        style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}
+                                    >
+                                        {item.icon}
+                                    </span>
+                                    <span className="text-[10px] font-medium">{item.label}</span>
+                                </Link>
+                            )
+                        })}
+                        <button
+                            onClick={() => setMobileOpen(true)}
+                            className="flex flex-col items-center justify-center flex-1 h-full gap-1 text-zinc-500"
+                        >
+                            <span className="material-symbols-outlined text-[22px]">menu</span>
+                            <span className="text-[10px] font-medium">More</span>
+                        </button>
+                    </div>
+                </nav>
+            )}
 
             {/* Mobile Drawer */}
             {mobileOpen && (

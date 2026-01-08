@@ -84,7 +84,7 @@ export default function DashboardPage() {
                     </div>
                 </header>
 
-                <div className="p-6 md:p-10 lg:p-12 max-w-6xl mx-auto space-y-10">
+                <div className="p-6 md:p-10 lg:p-12 max-w-6xl mx-auto space-y-10 pb-24 lg:pb-12">
                     {/* Welcome Section */}
                     <div className="flex flex-col gap-2">
                         <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white">
