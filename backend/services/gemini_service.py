@@ -16,35 +16,78 @@ class GeminiService:
     def generate_realtime_feedback(self, metrics, transcript="", slide_content=""):
         """Generate real-time coaching feedback with natural language insights"""
         
+        # Extract head pose data
+        head_pose = metrics.get('headPose', {})
+        yaw = head_pose.get('yaw', 0)
+        pitch = head_pose.get('pitch', 0)
+        roll = head_pose.get('roll', 0)
+        
+        # Extract engagement data
+        engagement = metrics.get('engagement', {})
+        engagement_level = engagement.get('level', 'neutral')  # good, neutral, bad
+        engagement_score = engagement.get('score', 50)
+        engagement_reason = engagement.get('reason', 'Analyzing...')
+        
+        # Determine audience focus interpretation
+        audience_focus = metrics.get('eyeContactPercent', 0)
+        if abs(yaw) >= 20:
+            focus_interpretation = "facing audience (good engagement)"
+        elif abs(yaw) < 12:
+            focus_interpretation = "facing screen/slides (consider looking at audience more)"
+        elif pitch < -12:
+            focus_interpretation = "looking down at notes"
+        else:
+            focus_interpretation = "neutral position"
+        
         prompt = f"""You are an expert presentation coach providing conversational, natural feedback.
 
 CURRENT METRICS:
-- Eye Contact: {metrics.get('eyeContactPercent', 0)}% (means they looked at camera {metrics.get('eyeContactPercent', 0)}% and away {100 - metrics.get('eyeContactPercent', 0)}%)
+
+🎯 AUDIENCE ENGAGEMENT:
+- Audience Focus Score: {audience_focus}% (higher = more time facing audience)
+- Engagement Level: {engagement_level.upper()} ({engagement_score}%)
+- Current Status: {engagement_reason}
+- Focus Interpretation: {focus_interpretation}
+
+📐 HEAD POSE INDICATOR:
+- Yaw (left/right): {yaw}° (positive = facing right/audience, negative = facing left/slides)
+- Pitch (up/down): {pitch}° (negative = looking down, positive = looking up)
+- Roll (tilt): {roll}°
+- Note: Yaw > 20° typically means facing audience; Yaw < 12° means facing screen
+
+🧍 POSTURE & GESTURES:
 - Posture Score: {metrics.get('postureScore', 'N/A')}%
-- Posture Issues: {', '.join(metrics.get('postureIssues', [])) or 'None'}
+- Posture Issues: {', '.join(metrics.get('postureIssues', [])) or 'None detected'}
 - Gesture Type: {metrics.get('gestureType', 'N/A')}
-- Gesture Classification: {metrics.get('gestureClassification', 'N/A')}
+- Gesture Classification: {metrics.get('gestureClassification', 'neutral')}
+
+🎤 SPEECH ANALYSIS:
 - Speech Rate: {metrics.get('speechRate', 'N/A')} WPM (optimal: 120-150)
 - Filler Words: {', '.join(metrics.get('fillerWords', [])) or 'None'} (count: {metrics.get('fillerCount', 0)})
-- Recent Speech: "{transcript[-200:] if transcript else 'No speech detected'}"
+- Recent Speech: "{transcript[-200:] if transcript else 'No speech detected yet'}"
 
-Generate feedback in JSON with NATURAL CONVERSATIONAL language. Example insights:
-- "You looked at your slides 73% of the time instead of your audience"
-- "Your hand gestures were mostly open and expressive - great for engagement"
-- "I noticed 5 filler words (um, uh) in the last minute"
-- "Your energy seems to be dropping - try varying your vocal pace"
+Generate feedback in JSON with NATURAL CONVERSATIONAL language. Be specific about:
+- How they're engaging with the audience vs slides
+- Their head position and what it means for connection
+- Concrete, actionable suggestions
+
+Example insights:
+- "You're facing the slides most of the time - try turning toward your audience more"
+- "Great! You're looking at your audience 75% of the time - that builds connection"
+- "I noticed you're looking down a lot - try keeping your notes at eye level"
+- "Your head is tilted slightly - standing straight projects more confidence"
 
 {{
     "overallScore": <0-100>,
     "naturalInsights": [
-        "<conversational observation about eye contact, e.g. 'You maintained eye contact 65% of the time'>",
-        "<conversational observation about gestures>",
-        "<conversational observation about speech>"
+        "<observation about audience engagement and head position>",
+        "<observation about posture and body language>",
+        "<observation about speech patterns>"
     ],
-    "quickTip": "<one actionable tip phrased conversationally>",
+    "quickTip": "<ONE actionable tip phrased conversationally, max 15 words>",
     "positives": ["<specific strength>", "<specific strength>"],
-    "improvements": ["<specific improvement>"],
-    "priority": "<posture|eye_contact|gestures|speech_rate|filler_words>"
+    "improvements": ["<specific improvement with reason>"],
+    "priority": "<engagement|head_pose|posture|gestures|speech_rate|filler_words>"
 }}"""
 
         try:
@@ -60,50 +103,65 @@ Generate feedback in JSON with NATURAL CONVERSATIONAL language. Example insights
             return json.loads(response_text.strip())
         except Exception as e:
             print(f"Error generating feedback: {e}")
-            eye_contact = metrics.get('eyeContactPercent', 50)
             return {
                 "overallScore": 70,
                 "naturalInsights": [
-                    f"You maintained eye contact {eye_contact}% of the time",
-                    "Your gestures are mostly neutral - try opening up more",
+                    f"You maintained audience focus {audience_focus}% of the time",
+                    f"Engagement level: {engagement_level} - {engagement_reason}",
+                    "Keep practicing to improve your connection with the audience"
                 ],
                 "quickTip": "Try looking directly at the camera more often!",
                 "positives": ["Great effort!", "Keep practicing!"],
-                "improvements": ["Increase eye contact with your audience"],
-                "priority": "eye_contact"
+                "improvements": ["Increase audience engagement by facing the camera more"],
+                "priority": "engagement"
             }
     
     def generate_voice_tip(self, metrics, transcript=""):
         """Generate short, speakable tip for voice HUD (max 15 words)"""
         
-        eye_contact = metrics.get('eyeContactPercent', 50)
+        # Extract metrics
+        audience_focus = metrics.get('eyeContactPercent', 50)
         posture = metrics.get('postureScore', 50)
         filler_count = metrics.get('fillerCount', 0)
         wpm = metrics.get('speechRate', 120)
         
+        # Extract engagement and head pose
+        engagement = metrics.get('engagement', {})
+        engagement_level = engagement.get('level', 'neutral')
+        engagement_reason = engagement.get('reason', '')
+        
+        head_pose = metrics.get('headPose', {})
+        yaw = head_pose.get('yaw', 0)
+        pitch = head_pose.get('pitch', 0)
+        
         prompt = f"""You are a friendly presentation coach giving ONE quick spoken tip.
 
 CURRENT METRICS:
-- Eye Contact: {eye_contact}%
+- Audience Focus: {audience_focus}% (time facing audience vs slides)
+- Engagement: {engagement_level.upper()} - {engagement_reason}
+- Head Yaw: {yaw}° (high = facing audience, low = facing slides)
+- Head Pitch: {pitch}° (negative = looking down)
 - Posture: {posture}%
-- Filler Words Used: {filler_count}
+- Filler Words: {filler_count}
 - Speech Pace: {wpm} WPM
 
 Generate exactly ONE short, encouraging tip (max 15 words). 
 Be conversational like a supportive friend.
-Focus on the weakest metric.
-Do NOT use markdown or special characters.
+Focus on the most important thing to improve RIGHT NOW.
+Do NOT use markdown, asterisks, or special characters.
 
-Examples:
-- "Great eye contact! Try slowing down just a bit."
-- "Looking good! Maybe look at the camera a bit more."
-- "Nice pace! Watch those um's and uh's."
+Examples based on metrics:
+- "Great job facing your audience! Keep that energy going."
+- "Try turning toward your audience a bit more."
+- "You're looking at your slides a lot - try facing the camera."
+- "Nice eye contact! Maybe slow down just a touch."
+- "Looking down at notes? Try glancing up more often."
 
 Return ONLY the tip text, nothing else."""
 
         try:
             response = self.model.generate_content(prompt)
-            tip = response.text.strip().strip('"').strip("'")
+            tip = response.text.strip().strip('"').strip("'").replace('*', '')
             
             # Ensure it's not too long
             words = tip.split()
@@ -115,15 +173,21 @@ Return ONLY the tip text, nothing else."""
         except Exception as e:
             print(f"Gemini voice tip error: {e}")
             
-            # Smart fallback based on weakest metric
-            if eye_contact < 50:
-                return {"quickTip": "Try making more eye contact with the camera.", "success": True}
+            # Smart fallback based on current state
+            if engagement_level == 'bad' and 'slides' in engagement_reason.lower():
+                return {"quickTip": "Try facing your audience instead of the slides.", "success": True}
+            elif engagement_level == 'bad' and 'down' in engagement_reason.lower():
+                return {"quickTip": "Looking down? Try keeping your head up more.", "success": True}
+            elif audience_focus < 40:
+                return {"quickTip": "Turn toward the camera to connect with your audience.", "success": True}
             elif posture < 50:
                 return {"quickTip": "Stand tall and open up your shoulders!", "success": True}
             elif filler_count > 5:
                 return {"quickTip": "You're doing great! Try pausing instead of using filler words.", "success": True}
             elif wpm > 160:
                 return {"quickTip": "Slow down a bit, you're speaking quite fast.", "success": True}
+            elif wpm < 100:
+                return {"quickTip": "Try picking up the pace a little bit.", "success": True}
             else:
                 return {"quickTip": "Great job! Keep up the good work.", "success": True}
 
