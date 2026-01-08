@@ -12,10 +12,12 @@ class User:
     collection_name = 'users'
     
     @staticmethod
-    def create_document(google_id, email, name=None, picture=None, 
-                       access_token=None, refresh_token=None, token_expiry=None):
+    def create_document(google_id=None, email=None, name=None, picture=None, 
+                       access_token=None, refresh_token=None, token_expiry=None,
+                       firebase_uid=None):
         """Create a new user document"""
         return {
+            'firebase_uid': firebase_uid,
             'google_id': google_id,
             'email': email,
             'name': name,
