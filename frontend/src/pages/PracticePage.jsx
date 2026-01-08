@@ -55,6 +55,14 @@ export default function PracticePage() {
     // STT mode indicator
     const [sttMode, setSttMode] = useState('detecting')
 
+    // Voice feedback state
+    const [voiceFeedbackEnabled, setVoiceFeedbackEnabled] = useState(() => {
+        try {
+            const settings = JSON.parse(localStorage.getItem('voice_feedback_settings') || '{}')
+            return settings.isEnabled ?? false
+        } catch { return false }
+    })
+
     // Mobile panel state
     const [mobilePanel, setMobilePanel] = useState('main') // 'main' | 'slides' | 'metrics'
     const [showMobileMetrics, setShowMobileMetrics] = useState(false)
@@ -237,16 +245,29 @@ export default function PracticePage() {
         setLoading(false)
         runAnalysisLoop()
 
-        // Start voice feedback interval (every 20 seconds)
+        // Start voice feedback if enabled
         voiceFeedbackService.loadSettings()
-        if (voiceFeedbackService.isEnabled) {
+        voiceFeedbackService.setEnabled(voiceFeedbackEnabled)
+
+        if (voiceFeedbackEnabled) {
             setShowVoiceHUD(true)
+
+            // Set up callback to display tips
+            voiceFeedbackService.onTip((tip) => {
+                setVoiceTip(tip)
+                setTimeout(() => setVoiceTip(''), 6000)
+            })
+
+            // First tip after 10 seconds, then every 20 seconds
+            setTimeout(async () => {
+                if (voiceFeedbackService.isEnabled) {
+                    await voiceFeedbackService.getFeedbackAndSpeak(metricsRef.current, transcript)
+                }
+            }, 10000)
+
             voiceFeedbackIntervalRef.current = setInterval(async () => {
-                const tip = await voiceFeedbackService.getFeedbackAndSpeak(metricsRef.current, transcript)
-                if (tip) {
-                    setVoiceTip(tip)
-                    // Auto-hide after 5 seconds
-                    setTimeout(() => setVoiceTip(''), 5000)
+                if (voiceFeedbackService.isEnabled) {
+                    await voiceFeedbackService.getFeedbackAndSpeak(metricsRef.current, transcript)
                 }
             }, 20000)
         }
@@ -405,6 +426,52 @@ export default function PracticePage() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {/* Voice Feedback Toggle */}
+                        <button
+                            onClick={() => {
+                                const newState = !voiceFeedbackEnabled
+                                setVoiceFeedbackEnabled(newState)
+                                voiceFeedbackService.setEnabled(newState)
+                                if (isPracticing) {
+                                    if (newState) {
+                                        setShowVoiceHUD(true)
+                                        voiceFeedbackService.onTip((tip) => {
+                                            setVoiceTip(tip)
+                                            setTimeout(() => setVoiceTip(''), 6000)
+                                        })
+                                        // Get first tip in 5 seconds
+                                        setTimeout(async () => {
+                                            if (voiceFeedbackService.isEnabled) {
+                                                await voiceFeedbackService.getFeedbackAndSpeak(metricsRef.current, transcript)
+                                            }
+                                        }, 5000)
+                                        voiceFeedbackIntervalRef.current = setInterval(async () => {
+                                            if (voiceFeedbackService.isEnabled) {
+                                                await voiceFeedbackService.getFeedbackAndSpeak(metricsRef.current, transcript)
+                                            }
+                                        }, 20000)
+                                    } else {
+                                        setShowVoiceHUD(false)
+                                        voiceFeedbackService.stop()
+                                        if (voiceFeedbackIntervalRef.current) {
+                                            clearInterval(voiceFeedbackIntervalRef.current)
+                                            voiceFeedbackIntervalRef.current = null
+                                        }
+                                    }
+                                }
+                            }}
+                            className={`hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${voiceFeedbackEnabled
+                                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                    : 'bg-zinc-800/50 text-zinc-400 border border-zinc-700 hover:border-zinc-600'
+                                }`}
+                            title="Voice Coaching Tips"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">
+                                {voiceFeedbackEnabled ? 'record_voice_over' : 'voice_over_off'}
+                            </span>
+                            <span className="hidden md:inline">{voiceFeedbackEnabled ? 'Voice On' : 'Voice Off'}</span>
+                        </button>
+
                         {!isPracticing ? (
                             <button
                                 onClick={startPractice}
