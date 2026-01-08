@@ -88,6 +88,18 @@ def create_app(config_name='default'):
             'service': 'Presentation Coach API'
         })
     
+    # Debug endpoint to check env vars (remove in production)
+    @app.route('/debug/env')
+    def debug_env():
+        import os
+        return jsonify({
+            'GOOGLE_CLIENT_ID_SET': bool(os.environ.get('GOOGLE_CLIENT_ID')),
+            'GOOGLE_CLIENT_SECRET_SET': bool(os.environ.get('GOOGLE_CLIENT_SECRET')),
+            'GOOGLE_REDIRECT_URI': os.environ.get('GOOGLE_REDIRECT_URI', 'NOT SET'),
+            'FRONTEND_URL': os.environ.get('FRONTEND_URL', 'NOT SET'),
+            'FLASK_ENV': os.environ.get('FLASK_ENV', 'NOT SET'),
+        })
+    
     # Root endpoint
     @app.route('/')
     def index():
