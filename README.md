@@ -28,7 +28,7 @@ Presentation Coach analyzes your eye contact, posture, gestures, speech rate, an
 ## ✨ Features
 
 - **📹 Real-Time Video Analysis**
-  Uses MediaPipe to track your pose, gestures, and body language instantly.
+  Uses MediaPipe to track your pose, gestures,and body language instantly.
 
 - **👁 Eye Contact Tracking**
   Ensures you stay engaged with your audience by monitoring your focus.
